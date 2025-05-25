@@ -28,38 +28,38 @@ VALUES
   ('a47ac10b-58cc-4372-a567-0e02b2c3d483', 'f47ac10b-58cc-4372-a567-0e02b2c3d483', 'f47ac10b-58cc-4372-a567-0e02b2c3d483', NOW(), 'Đã cập nhật');
 
 -- Insert CV details
-INSERT INTO cv_details (id, cv_id, ho_ten, chuc_danh, tom_tat, thong_tin_ca_nhan, thong_tin_dao_tao, thong_tin_khoa_hoc, thong_tin_ki_nang)
+INSERT INTO cv_details (id, cv_id, ho_ten, chuc_danh, anh_chan_dung, tom_tat, thong_tin_ca_nhan, thong_tin_dao_tao, thong_tin_khoa_hoc, thong_tin_ki_nang, cv_path)
 VALUES
-  ('b47ac10b-58cc-4372-a567-0e02b2c3d479', 'a47ac10b-58cc-4372-a567-0e02b2c3d479', 
-   'Nguyễn Văn A', 
-   'Kỹ sư phần mềm', 
+  ('b47ac10b-58cc-4372-a567-0e02b2c3d479', 'a47ac10b-58cc-4372-a567-0e02b2c3d479',
+   'Nguyễn Văn A',
+   'Kỹ sư phần mềm',
    'Kỹ sư phần mềm với 5 năm kinh nghiệm phát triển ứng dụng web và mobile. Có kinh nghiệm làm việc với các công nghệ hiện đại và quy trình phát triển Agile.',
    'Email: nguyenvana@vdt.com, SĐT: 0912345678, Ngày sinh: 01/01/1990, Địa chỉ: Hà Nội',
    'Đại học Bách Khoa Hà Nội, Kỹ sư CNTT, 2010-2014; Thạc sĩ CNTT, Đại học Quốc gia Hà Nội, 2015-2017',
    'AWS Certified Developer Associate; Microsoft Certified: Azure Developer Associate; ISTQB Foundation Level',
    'Ngôn ngữ lập trình: Java, Python, JavaScript, TypeScript; Framework: Spring Boot, React, Vue.js; Database: MySQL, PostgreSQL, MongoDB; Tools: Git, Docker, Jenkins'),
-   
-  ('b47ac10b-58cc-4372-a567-0e02b2c3d480', 'a47ac10b-58cc-4372-a567-0e02b2c3d480', 
-   'Trần Thị B', 
-   'Team Lead', 
+
+  ('b47ac10b-58cc-4372-a567-0e02b2c3d480', 'a47ac10b-58cc-4372-a567-0e02b2c3d480',
+   'Trần Thị B',
+   'Team Lead',
    'Team Lead với 8 năm kinh nghiệm quản lý dự án phần mềm. Có khả năng lãnh đạo và phối hợp hiệu quả giữa các bộ phận để đảm bảo dự án hoàn thành đúng tiến độ.',
    'Email: tranthib@vdt.com, SĐT: 0923456789, Ngày sinh: 15/05/1988, Địa chỉ: Hà Nội',
    'Đại học Công nghệ - Đại học Quốc gia Hà Nội, Kỹ sư CNTT, 2006-2010',
    'PMP Certification; Certified Scrum Master; Agile Leadership',
    'Quản lý dự án: Scrum, Kanban, Waterfall; Công cụ: Jira, Confluence, Trello; Kỹ năng mềm: Lãnh đạo, Giao tiếp, Thuyết trình, Đàm phán; Ngôn ngữ lập trình: Java, C#'),
-   
-  ('b47ac10b-58cc-4372-a567-0e02b2c3d481', 'a47ac10b-58cc-4372-a567-0e02b2c3d481', 
-   'Lê Văn C', 
-   'Project Manager', 
+
+  ('b47ac10b-58cc-4372-a567-0e02b2c3d481', 'a47ac10b-58cc-4372-a567-0e02b2c3d481',
+   'Lê Văn C',
+   'Project Manager',
    'Project Manager với 10 năm kinh nghiệm quản lý dự án CNTT quy mô lớn. Chuyên môn sâu trong quản lý dự án phần mềm cho lĩnh vực tài chính và ngân hàng.',
    'Email: levanc@vdt.com, SĐT: 0934567890, Ngày sinh: 20/08/1985, Địa chỉ: Hồ Chí Minh',
    'Đại học Kinh tế Thành phố Hồ Chí Minh, Cử nhân Quản trị kinh doanh, 2003-2007; MBA, Đại học Kinh tế TP.HCM, 2010-2012',
    'PMP Certification; PRINCE2 Practitioner; Certified SAFe Agilist',
    'Quản lý dự án: PMP, PRINCE2, Agile, SAFe; Quản lý rủi ro; Quản lý ngân sách; Kỹ năng lãnh đạo và tổ chức; Phân tích kinh doanh'),
-   
-  ('b47ac10b-58cc-4372-a567-0e02b2c3d483', 'a47ac10b-58cc-4372-a567-0e02b2c3d483', 
-   'Hoàng Thị E', 
-   'System Administrator', 
+
+  ('b47ac10b-58cc-4372-a567-0e02b2c3d483', 'a47ac10b-58cc-4372-a567-0e02b2c3d483',
+   'Hoàng Thị E',
+   'System Administrator',
    'System Administrator với 7 năm kinh nghiệm quản lý hệ thống CNTT doanh nghiệp. Chuyên môn vận hành và tối ưu hóa hệ thống máy chủ, mạng và bảo mật.',
    'Email: hoange@vdt.com, SĐT: 0956789012, Ngày sinh: 12/12/1992, Địa chỉ: Đà Nẵng',
    'Đại học Đà Nẵng, Kỹ sư Mạng máy tính và Truyền thông, 2010-2014',
@@ -88,16 +88,16 @@ VALUES
   ('d47ac10b-58cc-4372-a567-0e02b2c3d479', 'f47ac10b-58cc-4372-a567-0e02b2c3d480', 'Team Lead', '2023-01-01', NULL),
   ('d47ac10b-58cc-4372-a567-0e02b2c3d479', 'f47ac10b-58cc-4372-a567-0e02b2c3d479', 'Developer', '2023-01-01', NULL),
   ('d47ac10b-58cc-4372-a567-0e02b2c3d479', 'f47ac10b-58cc-4372-a567-0e02b2c3d482', 'Developer', '2023-01-15', '2023-08-15'),
-  
+
   ('d47ac10b-58cc-4372-a567-0e02b2c3d480', 'f47ac10b-58cc-4372-a567-0e02b2c3d481', 'Project Manager', '2023-03-15', NULL),
   ('d47ac10b-58cc-4372-a567-0e02b2c3d480', 'f47ac10b-58cc-4372-a567-0e02b2c3d479', 'Developer', '2023-03-15', NULL),
   ('d47ac10b-58cc-4372-a567-0e02b2c3d480', 'f47ac10b-58cc-4372-a567-0e02b2c3d482', 'QA Engineer', '2023-03-15', NULL),
-  
+
   ('d47ac10b-58cc-4372-a567-0e02b2c3d481', 'f47ac10b-58cc-4372-a567-0e02b2c3d481', 'Project Manager', '2023-06-01', NULL),
   ('d47ac10b-58cc-4372-a567-0e02b2c3d481', 'f47ac10b-58cc-4372-a567-0e02b2c3d480', 'Team Lead', '2023-06-01', NULL),
   ('d47ac10b-58cc-4372-a567-0e02b2c3d481', 'f47ac10b-58cc-4372-a567-0e02b2c3d479', 'Developer', '2023-06-01', NULL),
-  
+
   ('d47ac10b-58cc-4372-a567-0e02b2c3d482', 'f47ac10b-58cc-4372-a567-0e02b2c3d481', 'Project Manager', '2023-09-15', NULL),
   ('d47ac10b-58cc-4372-a567-0e02b2c3d482', 'f47ac10b-58cc-4372-a567-0e02b2c3d483', 'System Administrator', '2023-09-15', NULL),
   ('d47ac10b-58cc-4372-a567-0e02b2c3d482', 'f47ac10b-58cc-4372-a567-0e02b2c3d480', 'Team Lead', '2023-09-15', NULL),
-  ('d47ac10b-58cc-4372-a567-0e02b2c3d482', 'f47ac10b-58cc-4372-a567-0e02b2c3d479', 'Developer', '2023-09-15', NULL); 
+  ('d47ac10b-58cc-4372-a567-0e02b2c3d482', 'f47ac10b-58cc-4372-a567-0e02b2c3d479', 'Developer', '2023-09-15', NULL);

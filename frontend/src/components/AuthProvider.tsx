@@ -26,6 +26,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const checkAuth = async () => {
       try {
+        // Check if we have a token before trying to get user data
+        const token = localStorage.getItem('token');
+        if (!token) {
+          // No token, user is not logged in
+          setUser(null);
+          setError(null);
+          setLoading(false);
+          return;
+        }
+
+        // We have a token, try to get user data
         const userData = await getCurrentUser();
         setUser(userData);
         setError(null);

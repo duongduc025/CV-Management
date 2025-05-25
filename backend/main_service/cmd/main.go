@@ -102,6 +102,8 @@ func main() {
 			// All authenticated users can view their own CV
 			cvs.GET("/me", handlers.GetUserCV)
 
+			cvs.POST("/parse-cv", handlers.ParseCVFromFile)
+
 			// All authenticated users can create or update their own CV
 			cvs.POST("", handlers.CreateOrUpdateCV)
 
@@ -136,6 +138,15 @@ func main() {
 		{
 			// CV profile photo upload (optimized for CV photos, 3:4 ratio, cv-photos folder)
 			upload.POST("/cv-photo", handlers.UploadCVPhoto)
+			// PDF file upload for CV documents
+			upload.POST("/pdf", handlers.UploadPDF)
+		}
+
+		// AI service routes - accessible to all authenticated users
+		ai := api.Group("/ai")
+		{
+			// Parse CV from file path
+			ai.POST("/parse-cv", handlers.ParseCVFromFile)
 		}
 	}
 

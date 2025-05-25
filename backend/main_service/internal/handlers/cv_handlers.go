@@ -31,14 +31,14 @@ func GetUserCV(c *gin.Context) {
 		`SELECT cv.id, cv.user_id, cv.last_updated_by, cv.last_updated_at, cv.status,
 		cv_details.id, cv_details.cv_id, cv_details.ho_ten, cv_details.chuc_danh, cv_details.anh_chan_dung,
 		cv_details.tom_tat, cv_details.thong_tin_ca_nhan, cv_details.thong_tin_dao_tao,
-		cv_details.thong_tin_khoa_hoc, cv_details.thong_tin_ki_nang
+		cv_details.thong_tin_khoa_hoc, cv_details.thong_tin_ki_nang, cv_details.cv_path
 		FROM cv
 		LEFT JOIN cv_details ON cv.id = cv_details.cv_id
 		WHERE cv.user_id = $1`, userID).Scan(
 		&cv.ID, &cv.UserID, &cv.LastUpdatedBy, &cv.LastUpdatedAt, &cv.Status,
 		&details.ID, &details.CVID, &details.HoTen, &details.ChucDanh, &details.AnhChanDung,
 		&details.TomTat, &details.ThongTinCaNhan, &details.ThongTinDaoTao,
-		&details.ThongTinKhoaHoc, &details.ThongTinKiNang)
+		&details.ThongTinKhoaHoc, &details.ThongTinKiNang, &details.CVPath)
 
 	if err != nil {
 		fmt.Printf("GetUserCV: Error fetching CV: %v\n", err)
@@ -80,14 +80,14 @@ func GetCVByUserID(c *gin.Context) {
 		`SELECT cv.id, cv.user_id, cv.last_updated_by, cv.last_updated_at, cv.status,
 		cv_details.id, cv_details.cv_id, cv_details.ho_ten, cv_details.chuc_danh, cv_details.anh_chan_dung,
 		cv_details.tom_tat, cv_details.thong_tin_ca_nhan, cv_details.thong_tin_dao_tao,
-		cv_details.thong_tin_khoa_hoc, cv_details.thong_tin_ki_nang
+		cv_details.thong_tin_khoa_hoc, cv_details.thong_tin_ki_nang, cv_details.cv_path
 		FROM cv
 		LEFT JOIN cv_details ON cv.id = cv_details.cv_id
 		WHERE cv.user_id = $1`, userID).Scan(
 		&cv.ID, &cv.UserID, &cv.LastUpdatedBy, &cv.LastUpdatedAt, &cv.Status,
 		&details.ID, &details.CVID, &details.HoTen, &details.ChucDanh, &details.AnhChanDung,
 		&details.TomTat, &details.ThongTinCaNhan, &details.ThongTinDaoTao,
-		&details.ThongTinKhoaHoc, &details.ThongTinKiNang)
+		&details.ThongTinKhoaHoc, &details.ThongTinKiNang, &details.CVPath)
 
 	if err != nil {
 		fmt.Printf("GetCVByUserID: Error fetching CV: %v\n", err)
@@ -220,6 +220,7 @@ func CreateOrUpdateCV(c *gin.Context) {
 		ThongTinDaoTao  string `json:"thong_tin_dao_tao" binding:"required"`
 		ThongTinKhoaHoc string `json:"thong_tin_khoa_hoc"`
 		ThongTinKiNang  string `json:"thong_tin_ki_nang" binding:"required"`
+		CVPath          string `json:"cv_path" binding:"required"`
 	}
 
 	// Bind JSON request to struct
@@ -295,10 +296,10 @@ func CreateOrUpdateCV(c *gin.Context) {
 			cvDetailID = *existingCVDetailID
 			err = tx.QueryRow(c,
 				`UPDATE cv_details SET ho_ten = $1, chuc_danh = $2, anh_chan_dung = $3, tom_tat = $4, thong_tin_ca_nhan = $5,
-				thong_tin_dao_tao = $6, thong_tin_khoa_hoc = $7, thong_tin_ki_nang = $8
-				WHERE id = $9 RETURNING id`,
+				thong_tin_dao_tao = $6, thong_tin_khoa_hoc = $7, thong_tin_ki_nang = $8, cv_path = $9
+				WHERE id = $10 RETURNING id`,
 				request.HoTen, request.ChucDanh, request.AnhChanDung, request.TomTat, request.ThongTinCaNhan,
-				request.ThongTinDaoTao, request.ThongTinKhoaHoc, request.ThongTinKiNang, *existingCVDetailID).Scan(&cvDetailID)
+				request.ThongTinDaoTao, request.ThongTinKhoaHoc, request.ThongTinKiNang, request.CVPath, *existingCVDetailID).Scan(&cvDetailID)
 
 			if err != nil {
 				fmt.Printf("CreateOrUpdateCV: Error updating CV details record: %v\n", err)
@@ -311,11 +312,11 @@ func CreateOrUpdateCV(c *gin.Context) {
 		} else {
 			// Create new CV details record for existing CV
 			err = tx.QueryRow(c,
-				`INSERT INTO cv_details (id, cv_id, ho_ten, chuc_danh, anh_chan_dung, tom_tat, thong_tin_ca_nhan, thong_tin_dao_tao, thong_tin_khoa_hoc, thong_tin_ki_nang)
-				VALUES (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9)
+				`INSERT INTO cv_details (id, cv_id, ho_ten, chuc_danh, anh_chan_dung, tom_tat, thong_tin_ca_nhan, thong_tin_dao_tao, thong_tin_khoa_hoc, thong_tin_ki_nang, cv_path)
+				VALUES (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 				RETURNING id`,
 				cvID, request.HoTen, request.ChucDanh, request.AnhChanDung, request.TomTat, request.ThongTinCaNhan,
-				request.ThongTinDaoTao, request.ThongTinKhoaHoc, request.ThongTinKiNang).Scan(&cvDetailID)
+				request.ThongTinDaoTao, request.ThongTinKhoaHoc, request.ThongTinKiNang, request.CVPath).Scan(&cvDetailID)
 
 			if err != nil {
 				fmt.Printf("CreateOrUpdateCV: Error creating CV details record for existing CV: %v\n", err)
@@ -345,11 +346,11 @@ func CreateOrUpdateCV(c *gin.Context) {
 
 		// Insert CV details record
 		err = tx.QueryRow(c,
-			`INSERT INTO cv_details (id, cv_id, ho_ten, chuc_danh, anh_chan_dung, tom_tat, thong_tin_ca_nhan, thong_tin_dao_tao, thong_tin_khoa_hoc, thong_tin_ki_nang)
-			VALUES (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9)
+			`INSERT INTO cv_details (id, cv_id, ho_ten, chuc_danh, anh_chan_dung, tom_tat, thong_tin_ca_nhan, thong_tin_dao_tao, thong_tin_khoa_hoc, thong_tin_ki_nang, cv_path)
+			VALUES (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 			RETURNING id`,
 			cvID, request.HoTen, request.ChucDanh, request.AnhChanDung, request.TomTat, request.ThongTinCaNhan,
-			request.ThongTinDaoTao, request.ThongTinKhoaHoc, request.ThongTinKiNang).Scan(&cvDetailID)
+			request.ThongTinDaoTao, request.ThongTinKhoaHoc, request.ThongTinKiNang, request.CVPath).Scan(&cvDetailID)
 
 		if err != nil {
 			fmt.Printf("CreateOrUpdateCV: Error creating CV details record: %v\n", err)
@@ -373,9 +374,12 @@ func CreateOrUpdateCV(c *gin.Context) {
 
 	// Create response CV object
 	cv := models.CV{
-		ID:            cvID,
-		UserID:        userID.(string),
-		LastUpdatedBy: userID.(sql.NullString),
+		ID:     cvID,
+		UserID: userID.(string),
+		LastUpdatedBy: sql.NullString{
+			String: userID.(string),
+			Valid:  true,
+		},
 		LastUpdatedAt: sql.NullTime{Time: time.Now()},
 		Status:        "Đã cập nhật",
 		Details: models.CVDetail{
@@ -389,6 +393,7 @@ func CreateOrUpdateCV(c *gin.Context) {
 			ThongTinDaoTao:  request.ThongTinDaoTao,
 			ThongTinKhoaHoc: request.ThongTinKhoaHoc,
 			ThongTinKiNang:  request.ThongTinKiNang,
+			CVPath:          request.CVPath,
 		},
 	}
 

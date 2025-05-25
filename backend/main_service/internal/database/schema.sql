@@ -39,11 +39,13 @@ CREATE TABLE cv_details (
     cv_id UUID REFERENCES cv(id) ON DELETE CASCADE,
     ho_ten TEXT NOT NULL,
     chuc_danh TEXT NOT NULL,
+    anh_chan_dung TEXT,
     tom_tat TEXT NOT NULL,
     thong_tin_ca_nhan TEXT NOT NULL,
     thong_tin_dao_tao TEXT NOT NULL,
     thong_tin_khoa_hoc TEXT,
-    thong_tin_ki_nang TEXT NOT NULL
+    thong_tin_ki_nang TEXT NOT NULL,
+    cv_path TEXT
 );
 
 -- Bảng cv_update_requests
@@ -92,13 +94,13 @@ CREATE TABLE project_members (
 );
 
 -- Insert sample data
-INSERT INTO departments (id, name) VALUES 
+INSERT INTO departments (id, name) VALUES
     (uuid_generate_v4(), 'Phòng kỹ thuật'),
     (uuid_generate_v4(), 'Phòng nhân sự'),
     (uuid_generate_v4(), 'Phòng kinh doanh');
 
 -- Insert sample roles
-INSERT INTO roles (id, name) VALUES 
+INSERT INTO roles (id, name) VALUES
     (uuid_generate_v4(), 'Admin'),
     (uuid_generate_v4(), 'Manager'),
-    (uuid_generate_v4(), 'Employee'); 
+    (uuid_generate_v4(), 'Employee');

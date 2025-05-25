@@ -18,6 +18,14 @@ type UploadImageResponse struct {
 	AspectRatio  string `json:"aspect_ratio"`
 }
 
+// UploadPDFResponse represents the response structure for PDF upload
+type UploadPDFResponse struct {
+	URL          string `json:"url"`
+	OriginalName string `json:"original_name"`
+	Size         int64  `json:"size"`
+	ContentType  string `json:"content_type"`
+}
+
 // UploadCVPhoto handles CV profile photo upload with predefined settings
 func UploadCVPhoto(c *gin.Context) {
 	// Parse multipart form
@@ -152,4 +160,91 @@ func calculateFinalDimensions(originalWidth, originalHeight int, options *utils.
 	}
 
 	return finalWidth, finalHeight
+}
+
+// UploadPDF handles PDF file upload to Digital Ocean Spaces
+func UploadPDF(c *gin.Context) {
+	// Parse multipart form with larger memory limit for PDFs
+	err := c.Request.ParseMultipartForm(25 << 20) // 25MB max memory
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"message": "Failed to parse multipart form",
+		})
+		return
+	}
+
+	// Get the uploaded file
+	fileHeader, err := c.FormFile("pdf")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"message": "No PDF file provided. Use 'pdf' field name.",
+		})
+		return
+	}
+
+	// Validate the PDF file
+	if err := utils.ValidatePDFFile(fileHeader); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"message": fmt.Sprintf("Invalid PDF file: %v", err),
+		})
+		return
+	}
+
+	// Read the file data
+	file, err := fileHeader.Open()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Failed to open uploaded file",
+		})
+		return
+	}
+	defer file.Close()
+
+	// Read file content into memory
+	fileData := make([]byte, fileHeader.Size)
+	_, err = file.Read(fileData)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Failed to read file content",
+		})
+		return
+	}
+
+	// Create Digital Ocean Spaces client
+	spacesClient, err := utils.NewSpacesClient()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Failed to initialize storage client",
+		})
+		return
+	}
+
+	// Upload PDF to Digital Ocean Spaces in cv-documents folder
+	pdfURL, err := spacesClient.UploadFile(fileHeader, fileData, "cv-documents")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": fmt.Sprintf("Failed to upload PDF: %v", err),
+		})
+		return
+	}
+
+	// Return success response
+	response := UploadPDFResponse{
+		URL:          pdfURL,
+		OriginalName: fileHeader.Filename,
+		Size:         fileHeader.Size,
+		ContentType:  "application/pdf",
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status": "success",
+		"data":   response,
+	})
 }

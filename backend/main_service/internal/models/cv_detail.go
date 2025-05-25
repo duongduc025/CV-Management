@@ -12,4 +12,5 @@ type CVDetail struct {
 	ThongTinDaoTao  string `json:"thong_tin_dao_tao" db:"thong_tin_dao_tao"`
 	ThongTinKhoaHoc string `json:"thong_tin_khoa_hoc" db:"thong_tin_khoa_hoc"`
 	ThongTinKiNang  string `json:"thong_tin_ki_nang" db:"thong_tin_ki_nang"`
+	CVPath          string `json:"cv_path" db:"cv_path"`
 }

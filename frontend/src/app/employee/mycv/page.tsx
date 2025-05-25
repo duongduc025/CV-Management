@@ -1,15 +1,16 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { isEmployee } from '@/services/auth';
-import { createOrUpdateCV, getUserCV, type CVCreateRequest, type CV } from '@/services/cv';
+import { createOrUpdateCV, getUserCV, mapParsedDataToCVRequest, type CVCreateRequest, type CV } from '@/services/cv';
+import { uploadAndParseCV, validatePDFFile } from '@/services/upload';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import RoleSwitcherNavbar from '@/components/RoleSwitcherNavbar';
 import ImageUpload from '@/components/ImageUpload';
+import { Upload, CheckCircle, ExternalLink } from 'lucide-react';
 
 export default function MyCVPage() {
   const { user, loading } = useAuth();
@@ -25,12 +26,17 @@ export default function MyCVPage() {
     thong_tin_dao_tao: '',
     thong_tin_khoa_hoc: '',
     thong_tin_ki_nang: '',
+    cv_path: '',
   });
   const [formLoading, setFormLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [checkingCV, setCheckingCV] = useState(true);
+  const [cvFile, setCvFile] = useState<File | null>(null);
+  const [uploadLoading, setUploadLoading] = useState(false);
+  const [parseLoading, setParseLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     // If not loading and no user, redirect to login
@@ -108,11 +114,96 @@ export default function MyCVPage() {
         thong_tin_dao_tao: '',
         thong_tin_khoa_hoc: '',
         thong_tin_ki_nang: '',
+        cv_path: '',
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update CV. Please try again.');
     } finally {
       setFormLoading(false);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+
+      // Validate PDF file using service function
+      const validationError = validatePDFFile(file);
+      if (validationError) {
+        setError(validationError);
+        setCvFile(null);
+        return;
+      }
+
+      setCvFile(file);
+      setError('');
+      setSuccess(false); // Reset success state
+      setSuccessMessage('');
+    }
+  };
+
+  const handleUploadAreaClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      const file = e.dataTransfer.files[0];
+
+      // Validate PDF file using service function
+      const validationError = validatePDFFile(file);
+      if (validationError) {
+        setError(validationError);
+        setCvFile(null);
+        return;
+      }
+
+      setCvFile(file);
+      setError('');
+      setSuccess(false); // Reset success state
+      setSuccessMessage('');
+    }
+  };
+
+  // Handle upload and parse CV using service
+  const handleUploadAndParse = async () => {
+    if (!cvFile) {
+      setError('Vui lòng chọn file PDF trước');
+      return;
+    }
+
+    setUploadLoading(true);
+    setError('');
+
+    try {
+      // Step 1: Upload and parse CV using service
+      setSuccessMessage('Đang tải file lên server...');
+      setParseLoading(true);
+      setSuccessMessage('Đang phân tích CV...');
+
+      const result = await uploadAndParseCV(cvFile);
+
+      // Step 2: Populate form with parsed data
+      if (result.parsedData && result.parsedData.data) {
+        const mappedData = mapParsedDataToCVRequest(result.parsedData.data, formData, result.uploadResult.url);
+        setFormData(mappedData);
+
+        setSuccess(true);
+        setSuccessMessage('CV đã được phân tích và điền vào form thành công!');
+      } else {
+        setError('Không thể phân tích thông tin từ CV. Vui lòng kiểm tra file và thử lại.');
+      }
+
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Có lỗi xảy ra khi xử lý CV');
+    } finally {
+      setUploadLoading(false);
+      setParseLoading(false);
     }
   };
 
@@ -180,7 +271,7 @@ export default function MyCVPage() {
             {/* Existing CV Display */}
             {existingCV && !showCreateForm && (
               <div className="max-w-2xl mx-auto p-6 bg-white min-h-screen">
-                {/* Status and Edit Button */}
+                {/* Status and Action Buttons */}
                 <div className="flex justify-between items-center mb-6">
                   <span className={`px-3 py-1 rounded-full text-sm font-medium ${
                     existingCV.status === 'Đã cập nhật'
@@ -189,28 +280,44 @@ export default function MyCVPage() {
                   }`}>
                     {existingCV.status}
                   </span>
-                  <Button
-                    onClick={() => {
-                      // Pre-populate form with existing CV data
-                      if (existingCV?.details) {
-                        setFormData({
-                          ho_ten: existingCV.details.ho_ten || '',
-                          chuc_danh: existingCV.details.chuc_danh || '',
-                          anh_chan_dung: existingCV.details.anh_chan_dung || '',
-                          tom_tat: existingCV.details.tom_tat || '',
-                          thong_tin_ca_nhan: existingCV.details.thong_tin_ca_nhan || '',
-                          thong_tin_dao_tao: existingCV.details.thong_tin_dao_tao || '',
-                          thong_tin_khoa_hoc: existingCV.details.thong_tin_khoa_hoc || '',
-                          thong_tin_ki_nang: existingCV.details.thong_tin_ki_nang || '',
-                        });
-                      }
-                      setShowCreateForm(true);
-                    }}
-                    variant="outline"
-                    size="sm"
-                  >
-                    Cập nhật CV
-                  </Button>
+                  <div className="flex gap-2">
+                    {/* View Original CV Button */}
+                    {existingCV.details?.cv_path && (
+                      <Button
+                        onClick={() => window.open(existingCV.details?.cv_path || '', '_blank')}
+                        variant="outline"
+                        size="sm"
+                        className="text-blue-600 border-blue-600 hover:bg-blue-50"
+                      >
+                        <ExternalLink className="w-4 h-4 mr-2" />
+                        Xem CV gốc
+                      </Button>
+                    )}
+                    {/* Edit CV Button */}
+                    <Button
+                      onClick={() => {
+                        // Pre-populate form with existing CV data
+                        if (existingCV?.details) {
+                          setFormData({
+                            ho_ten: existingCV.details.ho_ten || '',
+                            chuc_danh: existingCV.details.chuc_danh || '',
+                            anh_chan_dung: existingCV.details.anh_chan_dung || '',
+                            tom_tat: existingCV.details.tom_tat || '',
+                            thong_tin_ca_nhan: existingCV.details.thong_tin_ca_nhan || '',
+                            thong_tin_dao_tao: existingCV.details.thong_tin_dao_tao || '',
+                            thong_tin_khoa_hoc: existingCV.details.thong_tin_khoa_hoc || '',
+                            thong_tin_ki_nang: existingCV.details.thong_tin_ki_nang || '',
+                            cv_path: existingCV.details.cv_path || '',
+                          });
+                        }
+                        setShowCreateForm(true);
+                      }}
+                      variant="outline"
+                      size="sm"
+                    >
+                      Cập nhật CV
+                    </Button>
+                  </div>
                 </div>
 
                 {existingCV.details && (
@@ -294,15 +401,106 @@ export default function MyCVPage() {
               </div>
             )}
 
-            {/* Edit CV Form */}
+            {/* CV Upload Section - Separate Card */}
+            {showCreateForm && (
+              <Card className="p-6 mb-6">
+                <div className="mb-6">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h2 className="text-xl font-bold text-gray-900">
+                        Upload CV for Auto-Fill
+                      </h2>
+                      <p className="mt-2 text-gray-600">
+                        Upload your existing CV in PDF format to automatically populate the form fields below.
+                      </p>
+                    </div>
+                    {/* Show current CV link if exists */}
+                    {formData.cv_path && (
+                      <Button
+                        onClick={() => window.open(formData.cv_path || '', '_blank')}
+                        variant="outline"
+                        size="sm"
+                        className="text-blue-600 border-blue-600 hover:bg-blue-50"
+                      >
+                        <ExternalLink className="w-4 h-4 mr-2" />
+                        CV hiện tại
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {/* CV Upload Area */}
+                <div className="mb-4">
+                  <div
+                    className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer hover:bg-blue-50 transition-colors flex flex-col items-center justify-center min-h-[120px] ${
+                      error ? 'border-red-300' : 'border-blue-300'
+                    }`}
+                    onClick={!uploadLoading && !parseLoading ? handleUploadAreaClick : undefined}
+                    onDragOver={handleDragOver}
+                    onDrop={handleDrop}
+                  >
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      className="hidden"
+                      accept=".pdf"
+                      onChange={handleFileChange}
+                    />
+
+                    {uploadLoading || parseLoading ? (
+                      <>
+                        <svg className="animate-spin h-8 w-8 mx-auto mb-2 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <p className="text-sm font-medium">
+                          {uploadLoading ? 'Đang tải file lên...' : 'Đang phân tích CV...'}
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <Upload className={`h-8 w-8 mx-auto mb-2 ${error ? 'text-red-500' : 'text-blue-500'}`} />
+                        <p className="text-sm font-medium mb-1">
+                          {cvFile ? cvFile.name : 'Kéo và thả hoặc click để chọn file PDF'}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          Chỉ hỗ trợ file PDF, tối đa 10MB
+                        </p>
+                        {cvFile && (
+                          <div className="mt-2 py-1 px-2 bg-green-100 text-green-800 rounded-full text-xs font-semibold inline-flex items-center">
+                            <CheckCircle className="h-3 w-3 mr-1" /> File đã chọn
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+
+                  {/* Upload and Parse Button */}
+                  {cvFile && !uploadLoading && !parseLoading && (
+                    <div className="mt-4 text-center">
+                      <Button
+                        onClick={handleUploadAndParse}
+                        disabled={uploadLoading || parseLoading}
+                        className="bg-green-600 hover:bg-green-700 text-white px-6 py-2"
+                      >
+                        <Upload className="w-4 h-4 mr-2" />
+                        Tải lên và Phân tích CV
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            )}
+
+            {/* Edit CV Form - Separate Card */}
             {showCreateForm && (
               <Card className="p-6">
                 <div className="mb-6">
                   <h2 className="text-2xl font-bold text-gray-900">
-                    Edit CV
+                    CV Information
                   </h2>
                   <p className="mt-2 text-gray-600">
-                    Update your professional information and CV details.
+                    Fill in your professional information manually or use the upload feature above to auto-populate these fields.
                   </p>
                 </div>
 

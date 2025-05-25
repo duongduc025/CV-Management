@@ -24,6 +24,7 @@ Thực hiện theo các bước sau để trích xuất và cấu trúc thông t
    - Điều chỉnh quy trình trích xuất để nắm bắt dữ liệu chính xác từ nhiều cách trình bày khác nhau.
 
 5. Tối ưu đầu ra:
+   - Mỗi trường đầu ra đều là một chuỗi (string).
    - Xử lý các thông tin bị thiếu hoặc không đầy đủ một cách phù hợp (sử dụng giá trị null hoặc mảng/đối tượng rỗng khi cần).
    - Chuẩn hóa định dạng ngày tháng nếu có thể.
    - Thêm ký tự xuống dòng (\n) cho các phần nội dung cần phân tách dòng để đảm bảo dễ đọc.

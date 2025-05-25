@@ -130,6 +130,8 @@ func getContentType(filename string) string {
 		return "image/gif"
 	case ".webp":
 		return "image/webp"
+	case ".pdf":
+		return "application/pdf"
 	default:
 		return "application/octet-stream"
 	}
@@ -167,5 +169,46 @@ func ValidateFileSize(size int64) error {
 	if size > maxSize {
 		return fmt.Errorf("file size exceeds maximum limit of 10MB")
 	}
+	return nil
+}
+
+// IsValidPDFType checks if the file is a PDF
+func IsValidPDFType(filename string) bool {
+	ext := strings.ToLower(filepath.Ext(filename))
+	return ext == ".pdf"
+}
+
+// ValidatePDFFile validates if the uploaded file is a valid PDF
+func ValidatePDFFile(fileHeader *multipart.FileHeader) error {
+	// Check file extension
+	if !IsValidPDFType(fileHeader.Filename) {
+		return fmt.Errorf("invalid file type. Only PDF files are supported")
+	}
+
+	// Check file size (max 20MB for PDFs)
+	const maxPDFSize = 20 * 1024 * 1024 // 20MB
+	if fileHeader.Size > maxPDFSize {
+		return fmt.Errorf("PDF file size exceeds maximum limit of 20MB")
+	}
+
+	// Basic PDF header validation
+	file, err := fileHeader.Open()
+	if err != nil {
+		return fmt.Errorf("failed to open file: %w", err)
+	}
+	defer file.Close()
+
+	// Read first 4 bytes to check PDF signature
+	header := make([]byte, 4)
+	_, err = file.Read(header)
+	if err != nil {
+		return fmt.Errorf("failed to read file header: %w", err)
+	}
+
+	// PDF files should start with "%PDF"
+	if string(header) != "%PDF" {
+		return fmt.Errorf("invalid PDF file: missing PDF header")
+	}
+
 	return nil
 }

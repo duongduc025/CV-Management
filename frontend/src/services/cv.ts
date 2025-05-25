@@ -13,6 +13,7 @@ export interface CVDetail {
   thong_tin_dao_tao: string;
   thong_tin_khoa_hoc?: string;
   thong_tin_ki_nang: string;
+  cv_path?: string;
 }
 
 export interface CV {
@@ -33,6 +34,7 @@ export interface CVCreateRequest {
   thong_tin_dao_tao: string;
   thong_tin_khoa_hoc?: string;
   thong_tin_ki_nang: string;
+  cv_path?: string;
 }
 
 export interface CVResponse {
@@ -88,3 +90,18 @@ export const getCVByUserID = async (userID: string): Promise<CV> => {
 
 // Alias for backward compatibility
 export const getCVById = getCVByUserID;
+
+// Helper function to map parsed CV data to CVCreateRequest format
+export const mapParsedDataToCVRequest = (parsedData: any, existingData?: CVCreateRequest, cvPath?: string): CVCreateRequest => {
+  return {
+    ho_ten: parsedData.ho_ten || parsedData.name || parsedData.full_name || existingData?.ho_ten || '',
+    chuc_danh: parsedData.chuc_danh || parsedData.title || parsedData.position || existingData?.chuc_danh || '',
+    anh_chan_dung: existingData?.anh_chan_dung || '', // Keep existing image
+    tom_tat: parsedData.tom_tat || parsedData.summary || parsedData.objective || existingData?.tom_tat || '',
+    thong_tin_ca_nhan: parsedData.thong_tin_ca_nhan || parsedData.personal_info || parsedData.contact || existingData?.thong_tin_ca_nhan || '',
+    thong_tin_dao_tao: parsedData.thong_tin_dao_tao || parsedData.education || parsedData.academic || existingData?.thong_tin_dao_tao || '',
+    thong_tin_khoa_hoc: parsedData.thong_tin_khoa_hoc || parsedData.courses || parsedData.certifications || existingData?.thong_tin_khoa_hoc || '',
+    thong_tin_ki_nang: parsedData.thong_tin_ki_nang || parsedData.skills || parsedData.technical_skills || existingData?.thong_tin_ki_nang || '',
+    cv_path: cvPath || existingData?.cv_path || '', // Save the uploaded CV path
+  };
+};

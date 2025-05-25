@@ -131,8 +131,8 @@ func Register(c *gin.Context) {
 
 	// Create empty CV details for the new CV
 	_, err = tx.Exec(c,
-		`INSERT INTO cv_details (id, cv_id, ho_ten, chuc_danh, anh_chan_dung, tom_tat, thong_tin_ca_nhan, thong_tin_dao_tao, thong_tin_khoa_hoc, thong_tin_ki_nang)
-		VALUES (uuid_generate_v4(), $1, '', '', '', '', '', '', '', '')`,
+		`INSERT INTO cv_details (id, cv_id, ho_ten, chuc_danh, anh_chan_dung, tom_tat, thong_tin_ca_nhan, thong_tin_dao_tao, thong_tin_khoa_hoc, thong_tin_ki_nang, cv_path)
+		VALUES (uuid_generate_v4(), $1, '', '', '', '', '', '', '', '', '')`,
 		cvID)
 
 	if err != nil {
