@@ -17,6 +17,7 @@ export interface User {
     id: string;
     name: string;
   }>;
+  projects?: string[]; // List of project names
 }
 
 // User management functions for admin and authorized users

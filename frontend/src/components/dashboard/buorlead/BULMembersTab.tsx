@@ -157,8 +157,17 @@ export default function BULMembersTab({ user }: BULMembersTabProps) {
       console.log(`Requesting CV update for CV ID: ${memberCV.id} with message:`, updateMessage);
       const result = await createCVUpdateRequest(memberCV.id, updateMessage);
 
-      // Use Sonner toast for success notification
-      toast.success(result.message);
+      // Use appropriate toast based on message type
+      if (result.message === "CV đang trong trạng thái chờ cập nhật") {
+        toast.warning(result.message);
+      } else {
+        toast.success(result.message);
+        // Update CV status to "Chưa cập nhật" if request was successful and not just a status message
+        setMembersCVStatus(prev => ({
+          ...prev,
+          [selectedMemberForUpdate.id]: 'Chưa cập nhật'
+        }));
+      }
 
       console.log('CV update request sent successfully');
       setShowMessageDialog(false);

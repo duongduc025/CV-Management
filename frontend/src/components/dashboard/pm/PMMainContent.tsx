@@ -4,6 +4,7 @@ import { User } from '@/services/auth';
 import PMHomeTab from './PMHomeTab';
 import PMProjectsTab from './PMProjectsTab';
 import PMMembersTab from './PMMembersTab';
+import PMCVRequestsTab from './PMCVRequestsTab';
 
 
 interface PMMainContentProps {
@@ -20,6 +21,8 @@ export default function PMMainContent({ activeTab, user }: PMMainContentProps) {
         return <PMProjectsTab user={user} />;
       case 'members':
         return <PMMembersTab user={user} />;
+      case 'cv-requests':
+        return <PMCVRequestsTab user={user} />;
       default:
         return <PMHomeTab user={user} />;
     }

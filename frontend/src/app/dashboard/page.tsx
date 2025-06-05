@@ -43,7 +43,7 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center">
-        <LoadingSpinner size="lg" message="Loading dashboard..." />
+        <LoadingSpinner size="lg" message="Đang tải bảng điều khiển..." />
       </div>
     );
   }
@@ -59,9 +59,9 @@ export default function DashboardPage() {
       return (
         <div className="space-y-6">
           <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-2xl font-bold text-brand-gray mb-4">Select Your Dashboard</h2>
+            <h2 className="text-2xl font-bold text-brand-gray mb-4">Chọn dashboard </h2>
             <p className="text-gray-600 mb-6">
-              You have multiple roles. Choose which dashboard you'd like to access:
+              Bạn có nhiều vai trò. Chọn bảng điều khiển mà bạn muốn truy cập:
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {user.roles?.map((role) => {
@@ -75,25 +75,25 @@ export default function DashboardPage() {
                     href = '/admin';
                     bgColor = 'bg-red-50';
                     textColor = 'text-brand-red';
-                    description = 'Full system administration';
+                    description = 'Quản trị hệ thống toàn diện';
                     break;
                   case 'PM':
                     href = '/pm/dashboard';
                     bgColor = 'bg-red-50';
                     textColor = 'text-brand-red';
-                    description = 'Project management tools';
+                    description = 'Quản lý dự án';
                     break;
                   case 'BUL/Lead':
                     href = '/bulorlead/dashboard';
                     bgColor = 'bg-green-50';
                     textColor = 'text-brand-green';
-                    description = 'Team leadership dashboard';
+                    description = 'Quản lý đơn vị';
                     break;
                   case 'Employee':
                     href = '/employee/dashboard';
                     bgColor = 'bg-gray-50';
                     textColor = 'text-brand-gray';
-                    description = 'Personal workspace';
+                    description = 'Không gian làm việc cá nhân';
                     break;
                 }
 

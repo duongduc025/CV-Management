@@ -11,6 +11,7 @@ export interface Notification {
   type: 'info' | 'success' | 'warning' | 'error';
   read: boolean;
   createdAt: string;
+  status?: 'Đang yêu cầu' | 'Đã xử lý' | 'Đã huỷ';
 }
 
 interface NotificationContextType {
@@ -48,7 +49,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
             message: request.message || `${request.requester_name} đã yêu cầu bạn cập nhật CV.`,
             type: 'warning' as const,
             read: request.is_read !== undefined ? request.is_read : (request.read || false), // Use is_read from backend, fallback to read, default to false
-            createdAt: request.requested_at
+            createdAt: request.requested_at,
+            status: request.status
           }));
 
           setNotifications(cvNotifications);

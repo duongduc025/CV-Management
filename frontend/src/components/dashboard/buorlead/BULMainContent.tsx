@@ -3,6 +3,7 @@
 import { User } from '@/services/auth';
 import BULHomeTab from './BULHomeTab';
 import BULMembersTab from './BULMembersTab';
+import BULCVRequestsTab from './BULCVRequestsTab';
 
 
 interface BULMainContentProps {
@@ -17,6 +18,8 @@ export default function BULMainContent({ activeTab, user }: BULMainContentProps)
         return <BULHomeTab user={user} />;
       case 'members':
         return <BULMembersTab user={user} />;
+      case 'cv-requests':
+        return <BULCVRequestsTab user={user} />;
       default:
         return <BULHomeTab user={user} />;
     }

@@ -8,15 +8,6 @@ import RoleSwitcherNavbar from '@/components/RoleSwitcherNavbar';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 
-interface Notification {
-  id: string;
-  title: string;
-  message: string;
-  type: 'info' | 'success' | 'warning' | 'error';
-  read: boolean;
-  createdAt: string;
-}
-
 export default function NotificationsPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
@@ -25,6 +16,7 @@ export default function NotificationsPage() {
 
   useEffect(() => {
     // If not loading and no user, redirect to login
+    console.log('Notifications', notifications);
     if (!loading && !user) {
       router.push('/login');
       return;
@@ -73,6 +65,29 @@ export default function NotificationsPage() {
     return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
+  const getStatusBadge = (status?: string) => {
+    if (!status) return null;
+
+    const getStatusStyle = (status: string) => {
+      switch (status) {
+        case 'Đã xử lý':
+          return 'bg-green-100 text-green-800 border-green-200';
+        case 'Đang yêu cầu':
+          return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+        case 'Đã huỷ':
+          return 'bg-gray-100 text-gray-800 border-gray-200';
+        default:
+          return 'bg-gray-100 text-gray-800 border-gray-200';
+      }
+    };
+
+    return (
+      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusStyle(status)}`}>
+        {status}
+      </span>
+    );
+  };
+
   const filteredNotifications = filter === 'unread'
     ? notifications.filter(n => !n.read)
     : notifications;
@@ -80,7 +95,7 @@ export default function NotificationsPage() {
   if (loading) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center">
-        <p className="text-lg">Loading notifications...</p>
+        <p className="text-lg">Đang tải thông báo...</p>
       </div>
     );
   }
@@ -98,9 +113,9 @@ export default function NotificationsPage() {
           <div className="px-4 py-6 sm:px-0">
             {/* Header */}
             <div className="mb-8">
-              <h1 className="text-3xl font-bold text-gray-900">Notifications</h1>
+              <h1 className="text-3xl font-bold text-gray-900">Thông báo</h1>
               <p className="mt-2 text-gray-600">
-                Stay updated with your latest notifications and system updates.
+                Cập nhật thông tin mới nhất và thông báo hệ thống.
               </p>
             </div>
 
@@ -112,14 +127,14 @@ export default function NotificationsPage() {
                   onClick={() => setFilter('all')}
                   size="sm"
                 >
-                  All ({notifications.length})
+                  Tất cả ({notifications.length})
                 </Button>
                 <Button
                   variant={filter === 'unread' ? 'default' : 'outline'}
                   onClick={() => setFilter('unread')}
                   size="sm"
                 >
-                  Unread ({unreadCount})
+                  Chưa đọc ({unreadCount})
                 </Button>
               </div>
 
@@ -129,7 +144,7 @@ export default function NotificationsPage() {
                   onClick={markAllAsRead}
                   size="sm"
                 >
-                  Mark All as Read
+                  Đánh dấu tất cả đã đọc
                 </Button>
               )}
             </div>
@@ -144,12 +159,12 @@ export default function NotificationsPage() {
                     </svg>
                   </div>
                   <h3 className="text-lg font-medium text-gray-900 mb-2">
-                    {filter === 'unread' ? 'No Unread Notifications' : 'No Notifications'}
+                    {filter === 'unread' ? 'Không có thông báo chưa đọc' : 'Không có thông báo'}
                   </h3>
                   <p className="text-gray-600">
                     {filter === 'unread'
-                      ? 'You\'re all caught up! No unread notifications at the moment.'
-                      : 'You don\'t have any notifications yet.'
+                      ? 'Bạn đã xem hết! Hiện tại không có thông báo chưa đọc nào.'
+                      : 'Bạn chưa có thông báo nào.'
                     }
                   </p>
                 </Card>
@@ -167,14 +182,17 @@ export default function NotificationsPage() {
 
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
-                          <h3 className={`text-sm font-medium ${
-                            !notification.read ? 'text-gray-900' : 'text-gray-700'
-                          }`}>
-                            {notification.title}
-                            {!notification.read && (
-                              <span className="ml-2 inline-block w-2 h-2 bg-blue-600 rounded-full"></span>
-                            )}
-                          </h3>
+                          <div className="flex items-center space-x-2">
+                            <h3 className={`text-sm font-medium ${
+                              !notification.read ? 'text-gray-900' : 'text-gray-700'
+                            }`}>
+                              {notification.title}
+                              {!notification.read && (
+                                <span className="ml-2 inline-block w-2 h-2 bg-blue-600 rounded-full"></span>
+                              )}
+                            </h3>
+                            {getStatusBadge(notification.status)}
+                          </div>
                           <span className="text-xs text-gray-500">
                             {formatDate(notification.createdAt)}
                           </span>

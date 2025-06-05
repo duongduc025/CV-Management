@@ -19,6 +19,7 @@ export interface User {
     id: string;
     name: string;
   }>;
+  projects?: string[]; // List of project names
 }
 
 export interface Member {
@@ -36,6 +37,7 @@ export interface Project {
   start_date?: string;
   end_date?: string;
   members?: Member[];
+  member_count?: number;
 }
 
 export interface ProjectCreateRequest {
@@ -192,17 +194,39 @@ export const updateProjectMemberRole = async (
 
 export { getAllUsers, getUserById };
 
-// Interface for member with project information
+// Interface for member with project information (kept for backward compatibility)
 export interface MemberWithProject extends Member {
   project_name: string;
 }
 
-// Get all members of all projects (PM only)
-export const getAllMembersOfAllProjects = async (): Promise<MemberWithProject[]> => {
+// Get all members of all projects (PM only) - now returns users with grouped projects
+export const getAllMembersOfAllProjects = async (): Promise<User[]> => {
   try {
     const response = await axios.get(`${API_URL}/projects/members`);
     return response.data.data;
   } catch (error) {
+    if (axios.isAxiosError(error) && error.response) {
+      throw new Error(error.response.data.message || 'Không thể tải danh sách thành viên dự án');
+    }
+    throw new Error('Không thể tải danh sách thành viên dự án. Vui lòng thử lại.');
+  }
+};
+
+// Interface for user with project role information
+export interface UserWithProjectRole extends User {
+  role_in_project?: string;
+  joined_at?: string;
+  left_at?: string;
+}
+
+// Get members of a specific project (PM only)
+export const getProjectMembers = async (projectId: string): Promise<UserWithProjectRole[]> => {
+  try {
+    console.log('Fetching members for project:', projectId);
+    const response = await axios.get(`${API_URL}/users/project/${projectId}`);
+    return response.data.data;
+  } catch (error) {
+    console.error('Error fetching project members:', error);
     if (axios.isAxiosError(error) && error.response) {
       throw new Error(error.response.data.message || 'Không thể tải danh sách thành viên dự án');
     }

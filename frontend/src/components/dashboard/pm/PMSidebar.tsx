@@ -1,6 +1,6 @@
 "use client";
 
-import { Home, FolderOpen, Users, X } from 'lucide-react';
+import { Home, FolderOpen, Users, FileText, X } from 'lucide-react';
 
 interface PMSidebarProps {
   activeTab: string;
@@ -28,6 +28,12 @@ const navigationItems = [
     name: 'Thành viên',
     icon: Users,
     description: 'Quản lý thành viên nhóm'
+  },
+  {
+    id: 'cv-requests',
+    name: 'Yêu cầu cập nhật CV',
+    icon: FileText,
+    description: 'Yêu cầu CV đã gửi'
   }
 ];
 

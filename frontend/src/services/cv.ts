@@ -31,6 +31,8 @@ export interface CV {
   last_updated_at?: string;
   status?: string;
   details?: CVDetail;
+  updater_name?: string;
+  updater_employee_code?: string;
 }
 
 export interface CVCreateRequest {
@@ -167,7 +169,7 @@ export const createCVUpdateRequest = async (cvId: string, content?: string): Pro
   }
 };
 
-// Get CV update requests
+// Get CV update requests (received by user)
 export const getCVUpdateRequests = async (): Promise<CVUpdateRequest[]> => {
   try {
     const response = await axios.get(`${API_URL}/requests`);
@@ -177,6 +179,48 @@ export const getCVUpdateRequests = async (): Promise<CVUpdateRequest[]> => {
       throw new Error(error.response.data.message || 'Failed to fetch CV update requests');
     }
     throw new Error('Failed to fetch CV update requests. Please try again.');
+  }
+};
+
+// Get CV update requests sent by user
+export const getSentCVUpdateRequests = async (): Promise<any[]> => {
+  try {
+    setAuthToken(); // Ensure auth token is set
+    const response = await axios.get(`${API_URL}/requests/sent`);
+    return response.data.data;
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response) {
+      throw new Error(error.response.data.message || 'Failed to fetch sent CV update requests');
+    }
+    throw new Error('Failed to fetch sent CV update requests. Please try again.');
+  }
+};
+
+// Get CV update requests sent by PM (only to users in managed projects)
+export const getSentCVUpdateRequestsPM = async (): Promise<any[]> => {
+  try {
+    setAuthToken(); // Ensure auth token is set
+    const response = await axios.get(`${API_URL}/requests/sent/pm`);
+    return response.data.data;
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response) {
+      throw new Error(error.response.data.message || 'Failed to fetch sent CV update requests for PM');
+    }
+    throw new Error('Failed to fetch sent CV update requests for PM. Please try again.');
+  }
+};
+
+// Get CV update requests sent by BUL (only to users in same Business Unit)
+export const getSentCVUpdateRequestsBUL = async (): Promise<any[]> => {
+  try {
+    setAuthToken(); // Ensure auth token is set
+    const response = await axios.get(`${API_URL}/requests/sent/bul`);
+    return response.data.data;
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response) {
+      throw new Error(error.response.data.message || 'Failed to fetch sent CV update requests for BUL');
+    }
+    throw new Error('Failed to fetch sent CV update requests for BUL. Please try again.');
   }
 };
 
@@ -210,5 +254,21 @@ export const markAllCVRequestsAsRead = async (): Promise<{ updated_count: number
       throw new Error(error.response.data.message || 'Failed to mark all requests as read');
     }
     throw new Error('Failed to mark all requests as read. Please try again.');
+  }
+};
+
+// Cancel a CV update request
+export const cancelCVUpdateRequest = async (requestId: string): Promise<void> => {
+  try {
+    setAuthToken(); // Ensure auth token is set
+    console.log('Cancelling CV update request:', requestId);
+    const response = await axios.put(`${API_URL}/requests/${requestId}/status`, { status: 'Đã huỷ' });
+    console.log('Cancel request response:', response.data);
+  } catch (error) {
+    console.error('Cancel CV update request error:', error);
+    if (axios.isAxiosError(error) && error.response) {
+      throw new Error(error.response.data.message || 'Failed to cancel CV update request');
+    }
+    throw new Error('Failed to cancel CV update request. Please try again.');
   }
 };

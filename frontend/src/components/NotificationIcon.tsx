@@ -91,25 +91,30 @@ export default function NotificationIcon() {
   return (
     <div className="relative" ref={dropdownRef}>
       {/* Notification Bell Icon */}
-      <button
-        onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-        className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
-        aria-label="Notifications"
-      >
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-5 5v-5zM4 19h6v-6H4v6zM16 3h5v5h-5V3zM4 3h6v6H4V3z" />
-        </svg>
+     <button
+  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+  className="relative p-2 text-gray-800 hover:text-white hover:bg-blue-600 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+  aria-label="Notifications"
+>
+  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      d="M15 17h5l-5 5v-5zM4 19h6v-6H4v6zM16 3h5v5h-5V3zM4 3h6v6H4V3z"
+    />
+  </svg>
 
-        {/* Unread Count Badge */}
-        {unreadCount > 0 && (
-          <Badge
-            variant="destructive"
-            className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center text-xs p-0 min-w-[20px]"
-          >
-            {unreadCount > 99 ? '99+' : unreadCount}
-          </Badge>
-        )}
-      </button>
+  {/* Unread Count Badge */}
+  {unreadCount > 0 && (
+    <Badge
+  className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center bg-red-600 text-white text-xs p-0 min-w-[20px] rounded-full"
+>
+  {unreadCount > 99 ? '99+' : unreadCount}
+</Badge>
+  )}
+</button>
+
 
       {/* Dropdown */}
       {isDropdownOpen && (

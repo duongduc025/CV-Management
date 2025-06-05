@@ -1,6 +1,6 @@
 "use client";
 
-import { Home, Users } from 'lucide-react';
+import { Home, Users, FileText } from 'lucide-react';
 
 interface BULSidebarProps {
   activeTab: string;
@@ -22,6 +22,12 @@ const navigationItems = [
     name: 'Quản lý thành viên',
     icon: Users,
     description: 'Quản lý thành viên nhóm'
+  },
+  {
+    id: 'cv-requests',
+    name: 'Yêu cầu cập nhật CV',
+    icon: FileText,
+    description: 'Yêu cầu CV đã gửi'
   }
 ];
 

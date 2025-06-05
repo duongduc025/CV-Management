@@ -15,6 +15,7 @@ type User struct {
 	Department   Department `json:"department,omitempty" db:"-"`
 	CreatedAt    time.Time  `json:"created_at" db:"created_at"`
 	Roles        []Role     `json:"roles,omitempty" db:"-"`
+	Projects     []string   `json:"projects,omitempty" db:"-"` // List of project names
 }
 
 // UserLogin represents login credentials

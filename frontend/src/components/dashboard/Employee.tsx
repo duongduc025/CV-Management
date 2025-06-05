@@ -16,9 +16,9 @@ export default function Employee({ user }: MyProfileProps) {
           background: 'linear-gradient(to right, #E60012, #B8000E)' 
         }}
       >
-        <h2 className="text-2xl font-bold mb-2">My Profile</h2>
+        <h2 className="text-2xl font-bold mb-2">Hồ sơ của tôi</h2>
         <p className="text-red-100">
-          Welcome back, {user.full_name}! Manage your profile and stay updated.
+          Chào mừng trở lại, {user.full_name}! Quản lý hồ sơ và cập nhật thông tin của bạn.
         </p>
       </div>
 
@@ -43,15 +43,15 @@ export default function Employee({ user }: MyProfileProps) {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
             </div>
-            <h3 className="text-lg font-semibold ml-3" style={{ color: '#333333' }}>My CV</h3>
+            <h3 className="text-lg font-semibold ml-3" style={{ color: '#333333' }}>CV của tôi</h3>
           </div>
-          <p className="mb-4" style={{ color: '#666666' }}>Manage and update your curriculum vitae</p>
+          <p className="mb-4" style={{ color: '#666666' }}>Quản lý và cập nhật sơ yếu lý lịch của bạn</p>
           <Link
             href="/employee/mycv"
             className="inline-flex items-center px-4 py-2 text-white rounded-md transition-colors hover:opacity-90"
             style={{ backgroundColor: '#83C21E' }}
           >
-            Manage CV
+            Quản lý CV
           </Link>
         </div>
 
@@ -75,15 +75,15 @@ export default function Employee({ user }: MyProfileProps) {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
             </div>
-            <h3 className="text-lg font-semibold ml-3" style={{ color: '#333333' }}>My Account</h3>
+            <h3 className="text-lg font-semibold ml-3" style={{ color: '#333333' }}>Tài khoản của tôi</h3>
           </div>
-          <p className="mb-4" style={{ color: '#666666' }}>View and update your personal information</p>
+          <p className="mb-4" style={{ color: '#666666' }}>Xem và cập nhật thông tin cá nhân của bạn</p>
           <Link
             href="/employee/account"
             className="inline-flex items-center px-4 py-2 text-white rounded-md transition-colors hover:opacity-90"
             style={{ backgroundColor: '#83C21E' }}
           >
-            View Account
+            Xem tài khoản
           </Link>
         </div>
 
@@ -107,15 +107,15 @@ export default function Employee({ user }: MyProfileProps) {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-5 5v-5zM4 19h6v-6H4v6zM16 3h5v5h-5V3zM4 3h6v6H4V3z" />
               </svg>
             </div>
-            <h3 className="text-lg font-semibold ml-3" style={{ color: '#333333' }}>Notifications</h3>
+            <h3 className="text-lg font-semibold ml-3" style={{ color: '#333333' }}>Thông báo</h3>
           </div>
-          <p className="mb-4" style={{ color: '#666666' }}>View your notifications and updates</p>
+          <p className="mb-4" style={{ color: '#666666' }}>Xem thông báo và cập nhật của bạn</p>
           <Link
             href="/employee/notifications"
             className="inline-flex items-center px-4 py-2 text-white rounded-md transition-colors hover:opacity-90"
             style={{ backgroundColor: '#83C21E' }}
           >
-            View Notifications
+            Xem thông báo
           </Link>
         </div>
       </div>

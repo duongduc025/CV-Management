@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/vdt/cv-management/internal/database"
@@ -142,7 +144,7 @@ func GetUsersInDepartment(c *gin.Context) {
 	})
 }
 
-// GetUsersInProject returns users from a specific project (PM only)
+// GetUsersInProject returns users from a specific project (PM and Admin only)
 func GetUsersInProject(c *gin.Context) {
 	fmt.Printf("=== GetUsersInProject Debug Info ===\n")
 
@@ -180,15 +182,19 @@ func GetUsersInProject(c *gin.Context) {
 
 	fmt.Printf("GetUsersInProject: User ID: %v, Roles: %v\n", userID, roleSlice)
 
-	// Check if user has PM role
-	if !contains(roleSlice, "PM") {
-		fmt.Printf("GetUsersInProject: Access denied - user does not have PM role\n")
+	// Check if user has PM or Admin role
+	hasAccess := contains(roleSlice, "PM") || contains(roleSlice, "Admin")
+	if !hasAccess {
+		fmt.Printf("GetUsersInProject: Access denied - user does not have PM or Admin role\n")
 		c.JSON(http.StatusForbidden, gin.H{
 			"status":  "error",
-			"message": "Forbidden - only PM users can access this endpoint",
+			"message": "Forbidden - only PM and Admin users can access this endpoint",
 		})
 		return
 	}
+
+	// Check if user is Admin for different logic
+	isAdmin := contains(roleSlice, "Admin")
 
 	// Get project ID from URL parameter
 	projectID := c.Param("project_id")
@@ -203,33 +209,38 @@ func GetUsersInProject(c *gin.Context) {
 
 	fmt.Printf("GetUsersInProject: Fetching users from project %s\n", projectID)
 
-	// First, verify that the PM is a member of this project
-	var pmMemberCount int
-	err := database.DB.QueryRow(c, `
-		SELECT COUNT(*)
-		FROM project_members
-		WHERE project_id = $1 AND user_id = $2
-		  AND (left_at IS NULL OR left_at > CURRENT_DATE)`, projectID, userID).Scan(&pmMemberCount)
+	// For PM users, verify they are a member of this project
+	// Admin users can access any project without membership check
+	if !isAdmin {
+		var pmMemberCount int
+		err := database.DB.QueryRow(c, `
+			SELECT COUNT(*)
+			FROM project_members
+			WHERE project_id = $1 AND user_id = $2
+			  AND (left_at IS NULL OR left_at > CURRENT_DATE)`, projectID, userID).Scan(&pmMemberCount)
 
-	if err != nil {
-		fmt.Printf("GetUsersInProject error checking PM membership: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"status":  "error",
-			"message": "Error verifying project access",
-		})
-		return
+		if err != nil {
+			fmt.Printf("GetUsersInProject error checking PM membership: %v\n", err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status":  "error",
+				"message": "Error verifying project access",
+			})
+			return
+		}
+
+		if pmMemberCount == 0 {
+			fmt.Printf("GetUsersInProject: PM %s is not a member of project %s\n", userID, projectID)
+			c.JSON(http.StatusForbidden, gin.H{
+				"status":  "error",
+				"message": "Forbidden - you are not a member of this project",
+			})
+			return
+		}
+	} else {
+		fmt.Printf("GetUsersInProject: Admin user %s accessing project %s (no membership check required)\n", userID, projectID)
 	}
 
-	if pmMemberCount == 0 {
-		fmt.Printf("GetUsersInProject: PM %s is not a member of project %s\n", userID, projectID)
-		c.JSON(http.StatusForbidden, gin.H{
-			"status":  "error",
-			"message": "Forbidden - you are not a member of this project",
-		})
-		return
-	}
-
-	// Query database for users in the specified project
+	// Query database for users in the specified project (including those who have left)
 	rows, err := database.DB.Query(c, `
 		SELECT u.id, u.employee_code, u.full_name, u.email, u.department_id,
 		       COALESCE(d.name, '') as department_name,
@@ -238,8 +249,9 @@ func GetUsersInProject(c *gin.Context) {
 		LEFT JOIN departments d ON u.department_id = d.id
 		INNER JOIN project_members pm ON u.id = pm.user_id
 		WHERE pm.project_id = $1
-		  AND (pm.left_at IS NULL OR pm.left_at > CURRENT_DATE)
-		ORDER BY u.full_name`, projectID)
+		ORDER BY
+			CASE WHEN pm.left_at IS NULL THEN 0 ELSE 1 END,
+			u.full_name`, projectID)
 
 	if err != nil {
 		fmt.Printf("GetUsersInProject error: %v\n", err)
@@ -251,14 +263,22 @@ func GetUsersInProject(c *gin.Context) {
 	}
 	defer rows.Close()
 
-	var users []models.User
+	// Structure to hold user with project role info
+	type UserWithProjectRole struct {
+		models.User
+		RoleInProject string `json:"role_in_project,omitempty"`
+		JoinedAt      string `json:"joined_at,omitempty"`
+		LeftAt        string `json:"left_at,omitempty"`
+	}
+
+	var users []UserWithProjectRole
 	for rows.Next() {
-		var user models.User
+		var userWithRole UserWithProjectRole
 		var deptName string
 		var roleInProject, joinedAt, leftAt interface{}
 
-		err := rows.Scan(&user.ID, &user.EmployeeCode, &user.FullName,
-			&user.Email, &user.DepartmentID, &deptName,
+		err := rows.Scan(&userWithRole.ID, &userWithRole.EmployeeCode, &userWithRole.FullName,
+			&userWithRole.Email, &userWithRole.DepartmentID, &deptName,
 			&roleInProject, &joinedAt, &leftAt)
 		if err != nil {
 			fmt.Printf("GetUsersInProject scan error: %v\n", err)
@@ -270,22 +290,33 @@ func GetUsersInProject(c *gin.Context) {
 		}
 
 		// Set department if available
-		if user.DepartmentID != "" && deptName != "" {
-			user.Department = models.Department{
-				ID:   user.DepartmentID,
+		if userWithRole.DepartmentID != "" && deptName != "" {
+			userWithRole.Department = models.Department{
+				ID:   userWithRole.DepartmentID,
 				Name: deptName,
 			}
 		}
 
-		// Get user roles
-		userRoles, err := getUserRoles(c, user.ID)
-		if err != nil {
-			fmt.Printf("Warning: Could not fetch roles for user %s: %v\n", user.ID, err)
-		} else {
-			user.Roles = userRoles
+		// Set project role information
+		if roleInProject != nil {
+			userWithRole.RoleInProject = roleInProject.(string)
+		}
+		if joinedAt != nil {
+			userWithRole.JoinedAt = joinedAt.(time.Time).Format("2006-01-02")
+		}
+		if leftAt != nil {
+			userWithRole.LeftAt = leftAt.(time.Time).Format("2006-01-02")
 		}
 
-		users = append(users, user)
+		// Get user roles
+		userRoles, err := getUserRoles(c, userWithRole.ID)
+		if err != nil {
+			fmt.Printf("Warning: Could not fetch roles for user %s: %v\n", userWithRole.ID, err)
+		} else {
+			userWithRole.Roles = userRoles
+		}
+
+		users = append(users, userWithRole)
 	}
 
 	// Check for errors during iteration
@@ -388,10 +419,32 @@ func CreateUser(c *gin.Context) {
 
 // UpdateUser updates an existing user
 func UpdateUser(c *gin.Context) {
-	id := c.Param("id")
+	fmt.Printf("=== UpdateUser Debug Info ===\n")
 
-	var userData models.User
-	if err := c.ShouldBindJSON(&userData); err != nil {
+	id := c.Param("id")
+	if id == "" {
+		fmt.Println("UpdateUser: User ID parameter missing")
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"message": "User ID is required",
+		})
+		return
+	}
+
+	fmt.Printf("UpdateUser: Attempting to update user with ID: %s\n", id)
+
+	// Define a struct for update request data
+	type UpdateUserRequest struct {
+		EmployeeCode string   `json:"employee_code" binding:"required"`
+		FullName     string   `json:"full_name" binding:"required"`
+		Email        string   `json:"email" binding:"required,email"`
+		DepartmentID string   `json:"department_id" binding:"required"`
+		RoleNames    []string `json:"role_names"`
+	}
+
+	var updateData UpdateUserRequest
+	if err := c.ShouldBindJSON(&updateData); err != nil {
+		fmt.Printf("UpdateUser: Invalid request data: %v\n", err)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  "error",
 			"message": "Invalid user data",
@@ -399,76 +452,309 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
-	// TODO: Update in database
-	// Mock response for now
-	userData.ID = id
+	fmt.Printf("UpdateUser: Update data: %+v\n", updateData)
 
+	// Check if user exists
+	var userExists bool
+	err := database.DB.QueryRow(c, "SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)", id).Scan(&userExists)
+	if err != nil {
+		fmt.Printf("UpdateUser error checking user existence: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Error checking user existence",
+		})
+		return
+	}
+
+	if !userExists {
+		fmt.Printf("UpdateUser: User %s not found\n", id)
+		c.JSON(http.StatusNotFound, gin.H{
+			"status":  "error",
+			"message": "User not found",
+		})
+		return
+	}
+
+	// Check if email is already taken by another user
+	var emailExists bool
+	err = database.DB.QueryRow(c, "SELECT EXISTS(SELECT 1 FROM users WHERE email = $1 AND id != $2)", updateData.Email, id).Scan(&emailExists)
+	if err != nil {
+		fmt.Printf("UpdateUser error checking email uniqueness: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Error validating email",
+		})
+		return
+	}
+
+	if emailExists {
+		fmt.Printf("UpdateUser: Email %s already exists for another user\n", updateData.Email)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"message": "Email already exists for another user",
+		})
+		return
+	}
+
+	// Start a transaction
+	tx, err := database.DB.Begin(c)
+	if err != nil {
+		fmt.Printf("UpdateUser transaction begin error: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Error starting transaction",
+		})
+		return
+	}
+	defer tx.Rollback(c)
+
+	// Update user basic information
+	_, err = tx.Exec(c, `
+		UPDATE users
+		SET employee_code = $1, full_name = $2, email = $3, department_id = $4
+		WHERE id = $5`,
+		updateData.EmployeeCode, updateData.FullName, updateData.Email, updateData.DepartmentID, id)
+
+	if err != nil {
+		fmt.Printf("UpdateUser error updating user: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Error updating user information",
+		})
+		return
+	}
+
+	fmt.Printf("UpdateUser: Updated basic user information for user %s\n", id)
+
+	// Update user roles if provided
+	if len(updateData.RoleNames) > 0 {
+		// First, delete existing roles
+		_, err = tx.Exec(c, "DELETE FROM user_roles WHERE user_id = $1", id)
+		if err != nil {
+			fmt.Printf("UpdateUser error deleting existing roles: %v\n", err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status":  "error",
+				"message": "Error updating user roles",
+			})
+			return
+		}
+
+		// Then, add new roles
+		for _, roleName := range updateData.RoleNames {
+			var roleID string
+			err = tx.QueryRow(c, "SELECT id FROM roles WHERE name = $1", roleName).Scan(&roleID)
+			if err != nil {
+				fmt.Printf("UpdateUser error finding role %s: %v\n", roleName, err)
+				c.JSON(http.StatusBadRequest, gin.H{
+					"status":  "error",
+					"message": fmt.Sprintf("Role '%s' not found", roleName),
+				})
+				return
+			}
+
+			_, err = tx.Exec(c, "INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)", id, roleID)
+			if err != nil {
+				fmt.Printf("UpdateUser error adding role %s: %v\n", roleName, err)
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"status":  "error",
+					"message": "Error adding user role",
+				})
+				return
+			}
+		}
+
+		fmt.Printf("UpdateUser: Updated roles for user %s: %v\n", id, updateData.RoleNames)
+	}
+
+	// Commit the transaction
+	err = tx.Commit(c)
+	if err != nil {
+		fmt.Printf("UpdateUser transaction commit error: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Error committing transaction",
+		})
+		return
+	}
+
+	// Fetch the updated user data to return
+	updatedUser, err := getSingleUserByID(c, id)
+	if err != nil {
+		fmt.Printf("UpdateUser error fetching updated user: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "User updated but error fetching updated data",
+		})
+		return
+	}
+
+	fmt.Printf("UpdateUser: Successfully updated user %s\n", id)
 	c.JSON(http.StatusOK, gin.H{
 		"status": "success",
-		"data":   userData,
+		"data":   updatedUser,
 	})
 }
 
 // DeleteUser deletes a user by ID
 func DeleteUser(c *gin.Context) {
-	id := c.Param("id")
+	fmt.Printf("=== DeleteUser Debug Info ===\n")
 
-	// TODO: Delete from database
-	// Mock response for now
+	id := c.Param("id")
+	if id == "" {
+		fmt.Println("DeleteUser: User ID parameter missing")
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"message": "User ID is required",
+		})
+		return
+	}
+
+	fmt.Printf("DeleteUser: Attempting to delete user with ID: %s\n", id)
+
+	// Get user ID from context (set by AuthMiddleware)
+	requestUserID, userIDExists := c.Get("userID")
+	if !userIDExists {
+		fmt.Println("DeleteUser: Request user ID not found in context")
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"status":  "error",
+			"message": "Unauthorized - user ID not found",
+		})
+		return
+	}
+
+	// Prevent users from deleting themselves
+	if requestUserID == id {
+		fmt.Printf("DeleteUser: User %s attempted to delete themselves\n", id)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"message": "Cannot delete your own account",
+		})
+		return
+	}
+
+	// Check if user exists before attempting deletion
+	var userExists bool
+	err := database.DB.QueryRow(c, "SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)", id).Scan(&userExists)
+	if err != nil {
+		fmt.Printf("DeleteUser error checking user existence: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Error checking user existence",
+		})
+		return
+	}
+
+	if !userExists {
+		fmt.Printf("DeleteUser: User %s not found\n", id)
+		c.JSON(http.StatusNotFound, gin.H{
+			"status":  "error",
+			"message": "User not found",
+		})
+		return
+	}
+
+	// Start a transaction to ensure data consistency
+	tx, err := database.DB.Begin(c)
+	if err != nil {
+		fmt.Printf("DeleteUser transaction begin error: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Error starting transaction",
+		})
+		return
+	}
+	defer tx.Rollback(c)
+
+	// Delete in proper order to handle foreign key constraints
+
+	// 1. Delete user roles
+	_, err = tx.Exec(c, "DELETE FROM user_roles WHERE user_id = $1", id)
+	if err != nil {
+		fmt.Printf("DeleteUser error deleting user roles: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Error deleting user roles",
+		})
+		return
+	}
+	fmt.Printf("DeleteUser: Deleted user roles for user %s\n", id)
+
+	// 2. Delete project members (hard delete to avoid foreign key constraint)
+	_, err = tx.Exec(c, "DELETE FROM project_members WHERE user_id = $1", id)
+	if err != nil {
+		fmt.Printf("DeleteUser error deleting project members: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Error removing user from projects",
+		})
+		return
+	}
+	fmt.Printf("DeleteUser: Removed user %s from all projects\n", id)
+
+	// 3. Delete CV update requests (CASCADE will handle cv_details)
+	_, err = tx.Exec(c, "DELETE FROM cv_update_requests WHERE cv_id IN (SELECT id FROM cv WHERE user_id = $1)", id)
+	if err != nil {
+		fmt.Printf("DeleteUser error deleting CV update requests: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Error deleting CV update requests",
+		})
+		return
+	}
+	fmt.Printf("DeleteUser: Deleted CV update requests for user %s\n", id)
+
+	// 4. Delete CV (CASCADE will handle cv_details)
+	_, err = tx.Exec(c, "DELETE FROM cv WHERE user_id = $1", id)
+	if err != nil {
+		fmt.Printf("DeleteUser error deleting CV: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Error deleting user CV",
+		})
+		return
+	}
+	fmt.Printf("DeleteUser: Deleted CV for user %s\n", id)
+
+	// 5. Finally, delete the user
+	result, err := tx.Exec(c, "DELETE FROM users WHERE id = $1", id)
+	if err != nil {
+		fmt.Printf("DeleteUser error deleting user: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Error deleting user",
+		})
+		return
+	}
+
+	// Check if user was actually deleted
+	rowsAffected := result.RowsAffected()
+	if rowsAffected == 0 {
+		fmt.Printf("DeleteUser: No rows affected when deleting user %s\n", id)
+		c.JSON(http.StatusNotFound, gin.H{
+			"status":  "error",
+			"message": "User not found",
+		})
+		return
+	}
+
+	// Commit the transaction
+	err = tx.Commit(c)
+	if err != nil {
+		fmt.Printf("DeleteUser transaction commit error: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Error committing transaction",
+		})
+		return
+	}
+
+	fmt.Printf("DeleteUser: Successfully deleted user %s\n", id)
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "success",
 		"message": "User deleted successfully",
 		"data": gin.H{
 			"id": id,
 		},
-	})
-}
-
-// GetDepartments returns all departments
-func GetDepartments(c *gin.Context) {
-	fmt.Println("GetDepartments: Fetching departments from database")
-
-	// Query database for all departments
-	rows, err := database.DB.Query(c, "SELECT id, name FROM departments ORDER BY name")
-	if err != nil {
-		fmt.Printf("GetDepartments error: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"status":  "error",
-			"message": "Error fetching departments",
-		})
-		return
-	}
-	defer rows.Close()
-
-	// Parse rows into department objects
-	var departments []models.Department
-	for rows.Next() {
-		var dept models.Department
-		if err := rows.Scan(&dept.ID, &dept.Name); err != nil {
-			fmt.Printf("GetDepartments scan error: %v\n", err)
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"status":  "error",
-				"message": "Error parsing department data",
-			})
-			return
-		}
-		departments = append(departments, dept)
-	}
-
-	// Check for errors during iteration
-	if err = rows.Err(); err != nil {
-		fmt.Printf("GetDepartments iteration error: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"status":  "error",
-			"message": "Error reading department data",
-		})
-		return
-	}
-
-	fmt.Printf("GetDepartments: Returning %d departments\n", len(departments))
-	c.JSON(http.StatusOK, gin.H{
-		"status": "success",
-		"data":   departments,
 	})
 }
 
@@ -531,7 +817,14 @@ func getAllUsers(c *gin.Context) ([]models.User, error) {
 
 	rows, err := database.DB.Query(c, `
 		SELECT u.id, u.employee_code, u.full_name, u.email, u.department_id,
-		       COALESCE(d.name, '') as department_name
+		       COALESCE(d.name, '') as department_name,
+		       (
+		           SELECT COALESCE(string_agg(p.name, ', '), '')
+		           FROM project_members pm
+		           JOIN projects p ON pm.project_id = p.id
+		           WHERE pm.user_id = u.id
+		             AND (pm.left_at IS NULL OR pm.left_at > CURRENT_DATE)
+		       ) as project_names
 		FROM users u
 		LEFT JOIN departments d ON u.department_id = d.id
 		ORDER BY u.full_name`)
@@ -545,9 +838,10 @@ func getAllUsers(c *gin.Context) ([]models.User, error) {
 	for rows.Next() {
 		var user models.User
 		var deptName string
+		var projectNamesStr string
 
 		err := rows.Scan(&user.ID, &user.EmployeeCode, &user.FullName,
-			&user.Email, &user.DepartmentID, &deptName)
+			&user.Email, &user.DepartmentID, &deptName, &projectNamesStr)
 		if err != nil {
 			return nil, fmt.Errorf("error scanning user: %w", err)
 		}
@@ -558,6 +852,22 @@ func getAllUsers(c *gin.Context) ([]models.User, error) {
 				ID:   user.DepartmentID,
 				Name: deptName,
 			}
+		}
+
+		// Parse project names from comma-separated string
+		if projectNamesStr != "" {
+			// Split the comma-separated project names
+			projectNames := strings.Split(projectNamesStr, ", ")
+			// Remove any empty strings
+			var filteredProjects []string
+			for _, name := range projectNames {
+				if strings.TrimSpace(name) != "" {
+					filteredProjects = append(filteredProjects, strings.TrimSpace(name))
+				}
+			}
+			user.Projects = filteredProjects
+		} else {
+			user.Projects = []string{} // Empty slice instead of nil
 		}
 
 		// Get user roles
@@ -740,4 +1050,67 @@ func getUsersFromSameDepartment(c *gin.Context, bulUserID string) ([]models.User
 
 	fmt.Printf("getUsersFromSameDepartment: Found %d users in department %s\n", len(users), bulDepartmentID)
 	return users, nil
+}
+
+// getSingleUserByID fetches a single user by ID with all related data
+func getSingleUserByID(c *gin.Context, userID string) (models.User, error) {
+	fmt.Printf("getSingleUserByID: Fetching user with ID: %s\n", userID)
+
+	var user models.User
+	var deptName string
+	var projectNamesStr string
+
+	err := database.DB.QueryRow(c, `
+		SELECT u.id, u.employee_code, u.full_name, u.email, u.department_id,
+		       COALESCE(d.name, '') as department_name,
+		       (
+		           SELECT COALESCE(string_agg(p.name, ', '), '')
+		           FROM project_members pm
+		           JOIN projects p ON pm.project_id = p.id
+		           WHERE pm.user_id = u.id
+		             AND (pm.left_at IS NULL OR pm.left_at > CURRENT_DATE)
+		       ) as project_names
+		FROM users u
+		LEFT JOIN departments d ON u.department_id = d.id
+		WHERE u.id = $1`, userID).Scan(&user.ID, &user.EmployeeCode, &user.FullName,
+		&user.Email, &user.DepartmentID, &deptName, &projectNamesStr)
+
+	if err != nil {
+		return user, fmt.Errorf("error querying user: %w", err)
+	}
+
+	// Set department if available
+	if user.DepartmentID != "" && deptName != "" {
+		user.Department = models.Department{
+			ID:   user.DepartmentID,
+			Name: deptName,
+		}
+	}
+
+	// Parse project names from comma-separated string
+	if projectNamesStr != "" {
+		// Split the comma-separated project names
+		projectNames := strings.Split(projectNamesStr, ", ")
+		// Remove any empty strings
+		var filteredProjects []string
+		for _, name := range projectNames {
+			if strings.TrimSpace(name) != "" {
+				filteredProjects = append(filteredProjects, strings.TrimSpace(name))
+			}
+		}
+		user.Projects = filteredProjects
+	} else {
+		user.Projects = []string{} // Empty slice instead of nil
+	}
+
+	// Get user roles
+	userRoles, err := getUserRoles(c, user.ID)
+	if err != nil {
+		fmt.Printf("Warning: Could not fetch roles for user %s: %v\n", user.ID, err)
+	} else {
+		user.Roles = userRoles
+	}
+
+	fmt.Printf("getSingleUserByID: Found user %s\n", user.ID)
+	return user, nil
 }

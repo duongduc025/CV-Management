@@ -9,6 +9,16 @@ import (
 	"github.com/vdt/cv-management/internal/models"
 )
 
+// AdminDashboardStats represents the statistics for admin dashboard
+type AdminDashboardStats struct {
+	TotalUsers       int `json:"totalUsers"`
+	TotalCVs         int `json:"totalCVs"`
+	UpdatedCVs       int `json:"updatedCVs"`
+	UpdateRequests   int `json:"updateRequests"`
+	TotalProjects    int `json:"totalProjects"`
+	TotalDepartments int `json:"totalDepartments"`
+}
+
 func GetGeneralInfoOfDepartment(c *gin.Context) {
 	//Get the name of department and numbers of member in the department
 	// Get user ID from context
@@ -222,5 +232,86 @@ func GetGeneralInfoOfProjectManagement(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"status": "success",
 		"data":   responseData,
+	})
+}
+
+// GetAdminDashboardStats returns statistics for admin dashboard
+func GetAdminDashboardStats(c *gin.Context) {
+	fmt.Println("GetAdminDashboardStats: Fetching admin dashboard statistics")
+
+	var stats AdminDashboardStats
+
+	// Get total number of users
+	err := database.DB.QueryRow(c, "SELECT COUNT(*) FROM users").Scan(&stats.TotalUsers)
+	if err != nil {
+		fmt.Printf("GetAdminDashboardStats: Error getting total users: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Error retrieving user statistics",
+		})
+		return
+	}
+
+	// Get total number of CVs
+	err = database.DB.QueryRow(c, "SELECT COUNT(*) FROM cv").Scan(&stats.TotalCVs)
+	if err != nil {
+		fmt.Printf("GetAdminDashboardStats: Error getting total CVs: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Error retrieving CV statistics",
+		})
+		return
+	}
+
+	// Get number of updated CVs
+	err = database.DB.QueryRow(c, "SELECT COUNT(*) FROM cv WHERE status = 'Đã cập nhật'").Scan(&stats.UpdatedCVs)
+	if err != nil {
+		fmt.Printf("GetAdminDashboardStats: Error getting updated CVs: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Error retrieving updated CV statistics",
+		})
+		return
+	}
+
+	// Get number of CV update requests
+	err = database.DB.QueryRow(c, "SELECT COUNT(*) FROM cv_update_requests WHERE status = 'Đang yêu cầu'").Scan(&stats.UpdateRequests)
+	if err != nil {
+		fmt.Printf("GetAdminDashboardStats: Error getting update requests: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Error retrieving update request statistics",
+		})
+		return
+	}
+
+	// Get total number of projects
+	err = database.DB.QueryRow(c, "SELECT COUNT(*) FROM projects").Scan(&stats.TotalProjects)
+	if err != nil {
+		fmt.Printf("GetAdminDashboardStats: Error getting total projects: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Error retrieving project statistics",
+		})
+		return
+	}
+
+	// Get total number of departments
+	err = database.DB.QueryRow(c, "SELECT COUNT(*) FROM departments").Scan(&stats.TotalDepartments)
+	if err != nil {
+		fmt.Printf("GetAdminDashboardStats: Error getting total departments: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Error retrieving department statistics",
+		})
+		return
+	}
+
+	fmt.Printf("GetAdminDashboardStats: Users: %d, CVs: %d, Updated CVs: %d, Update Requests: %d, Projects: %d, Departments: %d\n",
+		stats.TotalUsers, stats.TotalCVs, stats.UpdatedCVs, stats.UpdateRequests, stats.TotalProjects, stats.TotalDepartments)
+
+	c.JSON(http.StatusOK, gin.H{
+		"status": "success",
+		"data":   stats,
 	})
 }

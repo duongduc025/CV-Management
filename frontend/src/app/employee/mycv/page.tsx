@@ -101,7 +101,7 @@ export default function MyCVPage() {
       const savedCV = await createOrUpdateCV(formData);
       setExistingCV(savedCV);
       setSuccess(true);
-      setSuccessMessage('CV updated successfully!');
+      setSuccessMessage('CV đã được cập nhật thành công!');
       setShowCreateForm(false);
 
       // Reset form
@@ -117,7 +117,7 @@ export default function MyCVPage() {
         cv_path: '',
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update CV. Please try again.');
+      setError(err instanceof Error ? err.message : 'Không thể cập nhật CV. Vui lòng thử lại.');
     } finally {
       setFormLoading(false);
     }
@@ -210,7 +210,7 @@ export default function MyCVPage() {
   if (loading || checkingCV) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center">
-        <p className="text-lg">Loading...</p>
+        <p className="text-lg">Đang tải...</p>
       </div>
     );
   }
@@ -228,9 +228,9 @@ export default function MyCVPage() {
           <div className="px-4 py-6 sm:px-0">
             {/* Header */}
             <div className="mb-8">
-              <h1 className="text-3xl font-bold text-gray-900">My CV</h1>
+              <h1 className="text-3xl font-bold text-gray-900">CV của tôi</h1>
               <p className="mt-2 text-gray-600">
-                Manage your curriculum vitae and professional information.
+                Quản lý sơ yếu lý lịch và thông tin nghề nghiệp của bạn.
               </p>
             </div>
 
@@ -271,6 +271,18 @@ export default function MyCVPage() {
             {/* Existing CV Display */}
             {existingCV && !showCreateForm && (
               <div className="max-w-2xl mx-auto p-6 bg-white min-h-screen">
+                {/* Last Updated Information */}
+                {existingCV.updater_name && existingCV.last_updated_at && (
+                  <div className="mb-4 text-sm text-gray-600 bg-gray-50 p-3 rounded-md">
+                    <div>
+                      <strong>Cập nhật lần cuối bởi:</strong> {existingCV.updater_name} - {existingCV.updater_employee_code}
+                    </div>
+                    <div>
+                      <strong>Cập nhật lần cuối lúc:</strong> {new Date(existingCV.last_updated_at).toLocaleString('vi-VN')}
+                    </div>
+                  </div>
+                )}
+
                 {/* Status and Action Buttons */}
                 <div className="flex justify-between items-center mb-6">
                   <span className={`px-3 py-1 rounded-full text-sm font-medium ${
@@ -408,10 +420,10 @@ export default function MyCVPage() {
                   <div className="flex justify-between items-start">
                     <div>
                       <h2 className="text-xl font-bold text-gray-900">
-                        Upload CV for Auto-Fill
+                        Tải lên CV để tự động điền thông tin
                       </h2>
                       <p className="mt-2 text-gray-600">
-                        Upload your existing CV in PDF format to automatically populate the form fields below.
+                        Tải lên CV hiện tại của bạn ở định dạng PDF để tự động điền vào các trường thông tin bên dưới.
                       </p>
                     </div>
                     {/* Show current CV link if exists */}
@@ -497,10 +509,10 @@ export default function MyCVPage() {
               <Card className="p-6">
                 <div className="mb-6">
                   <h2 className="text-2xl font-bold text-gray-900">
-                    CV Information
+                    Thông tin CV
                   </h2>
                   <p className="mt-2 text-gray-600">
-                    Fill in your professional information manually or use the upload feature above to auto-populate these fields.
+                    Điền thông tin nghề nghiệp của bạn thủ công hoặc sử dụng tính năng tải lên ở trên để tự động điền các trường này.
                   </p>
                 </div>
 
@@ -633,7 +645,7 @@ export default function MyCVPage() {
                       disabled={formLoading}
                       className="flex-1"
                     >
-                      {formLoading ? 'Saving...' : 'Update CV'}
+                      {formLoading ? 'Đang lưu...' : 'Cập nhật CV'}
                     </Button>
 
                     {existingCV && (
@@ -643,7 +655,7 @@ export default function MyCVPage() {
                         onClick={() => setShowCreateForm(false)}
                         className="flex-1"
                       >
-                        Cancel
+                        Hủy
                       </Button>
                     )}
                   </div>
@@ -659,12 +671,12 @@ export default function MyCVPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                 </div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Complete Your CV</h3>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Hoàn thành CV của bạn</h3>
                 <p className="text-gray-600 mb-6">
-                  Your CV profile has been created. Please fill in your professional information to complete it.
+                  Hồ sơ CV của bạn đã được tạo. Vui lòng điền thông tin nghề nghiệp để hoàn thành.
                 </p>
                 <Button onClick={() => setShowCreateForm(true)}>
-                  Complete My CV
+                  Hoàn thành CV của tôi
                 </Button>
               </Card>
             )}

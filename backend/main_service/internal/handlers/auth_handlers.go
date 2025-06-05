@@ -172,19 +172,19 @@ func Register(c *gin.Context) {
 	if successCount == totalCount {
 		c.JSON(http.StatusCreated, gin.H{
 			"status":  "success",
-			"message": "All users registered successfully",
+			"message": "Đăng ký thành công",
 			"data":    bulkResult,
 		})
 	} else if successCount > 0 {
 		c.JSON(http.StatusPartialContent, gin.H{
 			"status":  "partial_success",
-			"message": "Some users registered successfully",
+			"message": "Một vài vấn đề xảy ra với các thành viên",
 			"data":    bulkResult,
 		})
 	} else {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  "error",
-			"message": "No users were registered successfully",
+			"message": "Đăng ký thất bại",
 			"data":    bulkResult,
 		})
 	}

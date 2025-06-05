@@ -2,18 +2,19 @@
 
 import { useState, useEffect } from 'react';
 import { User } from '@/services/auth';
-import { MemberWithProject, getAllMembersOfAllProjects } from '@/services/project';
+import { getAllMembersOfAllProjects } from '@/services/project';
 import { getUserCVByUserId, CV, createCVUpdateRequest } from '@/services/cv';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { toast } from 'sonner';
+import { MessageSquare } from 'lucide-react';
 
 interface PMMembersTabProps {
   user: User;
 }
 
 export default function PMMembersTab({ user }: PMMembersTabProps) {
-  const [members, setMembers] = useState<MemberWithProject[]>([]);
-  const [selectedMember, setSelectedMember] = useState<MemberWithProject | null>(null);
+  const [members, setMembers] = useState<User[]>([]);
+  const [selectedMember, setSelectedMember] = useState<User | null>(null);
   const [selectedMemberCV, setSelectedMemberCV] = useState<CV | null>(null);
   const [membersCVStatus, setMembersCVStatus] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -25,7 +26,7 @@ export default function PMMembersTab({ user }: PMMembersTabProps) {
   const [showCVPanel, setShowCVPanel] = useState(false);
   const [showMessageDialog, setShowMessageDialog] = useState(false);
   const [updateMessage, setUpdateMessage] = useState('');
-  const [selectedMemberForUpdate, setSelectedMemberForUpdate] = useState<MemberWithProject | null>(null);
+  const [selectedMemberForUpdate, setSelectedMemberForUpdate] = useState<User | null>(null);
 
   // Notification hook
   const { addNotification } = useNotifications();
@@ -53,21 +54,21 @@ export default function PMMembersTab({ user }: PMMembersTabProps) {
     }
   };
 
-  const loadMembersCVStatuses = async (membersData: MemberWithProject[]) => {
+  const loadMembersCVStatuses = async (membersData: User[]) => {
     try {
       setLoadingCVStatuses(true);
       const statusMap: Record<string, string> = {};
 
       // Fetch CV status for each member
       const statusPromises = membersData.map(async (member) => {
-        if (member.user_id) {
+        if (member.id) {
           try {
-            const memberCV = await getUserCVByUserId(member.user_id);
-            statusMap[member.user_id] = memberCV.status || 'Chưa cập nhật';
+            const memberCV = await getUserCVByUserId(member.id);
+            statusMap[member.id] = memberCV.status || 'Chưa cập nhật';
           } catch (error) {
             // If CV not found, set status as 'Chưa cập nhật'
-            statusMap[member.user_id] = 'Chưa cập nhật';
-            console.log(`No CV found for member ${member.user_id}, setting status to 'Chưa cập nhật'`);
+            statusMap[member.id] = 'Chưa cập nhật';
+            console.log(`No CV found for member ${member.id}, setting status to 'Chưa cập nhật'`);
           }
         }
       });
@@ -82,18 +83,18 @@ export default function PMMembersTab({ user }: PMMembersTabProps) {
     }
   };
 
-  const handleViewCV = async (member: MemberWithProject) => {
+  const handleViewCV = async (member: User) => {
     setSelectedMember(member);
     setSelectedMemberCV(null);
     setCvError(null);
     setShowCVPanel(true);
 
     // Fetch CV information for the selected member
-    if (member.user_id) {
+    if (member.id) {
       try {
         setLoadingCV(true);
-        console.log(`Fetching CV for user ID: ${member.user_id}`);
-        const memberCV = await getUserCVByUserId(member.user_id);
+        console.log(`Fetching CV for user ID: ${member.id}`);
+        const memberCV = await getUserCVByUserId(member.id);
         setSelectedMemberCV(memberCV);
         console.log('Member CV loaded successfully:', memberCV);
       } catch (error) {
@@ -115,7 +116,7 @@ export default function PMMembersTab({ user }: PMMembersTabProps) {
     }
   };
 
-  const handleRequestCVUpdate = (member: MemberWithProject) => {
+  const handleRequestCVUpdate = (member: User) => {
     setSelectedMemberForUpdate(member);
     setUpdateMessage('');
     setShowMessageDialog(true);
@@ -128,7 +129,7 @@ export default function PMMembersTab({ user }: PMMembersTabProps) {
       setRequestingUpdate(true);
 
       // First get the CV for this member
-      const memberCV = await getUserCVByUserId(selectedMemberForUpdate.user_id);
+      const memberCV = await getUserCVByUserId(selectedMemberForUpdate.id);
 
       if (!memberCV?.id) {
         addNotification({
@@ -142,8 +143,17 @@ export default function PMMembersTab({ user }: PMMembersTabProps) {
       console.log(`Requesting CV update for CV ID: ${memberCV.id} with message:`, updateMessage);
       const result = await createCVUpdateRequest(memberCV.id, updateMessage);
 
-      // Use Sonner toast for success notification
-      toast.success(result.message);
+      // Use appropriate toast based on message type
+      if (result.message === "CV đang trong trạng thái chờ cập nhật") {
+        toast.warning(result.message);
+      } else {
+        toast.success(result.message);
+        // Update CV status to "Chưa cập nhật" if request was successful and not just a status message
+        setMembersCVStatus(prev => ({
+          ...prev,
+          [selectedMemberForUpdate.id]: 'Chưa cập nhật'
+        }));
+      }
 
       console.log('CV update request sent successfully');
       setShowMessageDialog(false);
@@ -272,10 +282,10 @@ export default function PMMembersTab({ user }: PMMembersTabProps) {
                         Mã NV
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Dự án
+                        Phòng ban
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Vai trò
+                        Dự án đang tham gia
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Trạng thái CV
@@ -287,7 +297,7 @@ export default function PMMembersTab({ user }: PMMembersTabProps) {
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {members.map((member) => (
-                      <tr key={`${member.user_id}-${member.project_id}`} className="hover:bg-gray-50">
+                      <tr key={member.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center">
                             <svg className="w-5 h-5 text-gray-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -295,34 +305,41 @@ export default function PMMembersTab({ user }: PMMembersTabProps) {
                             </svg>
                             <div>
                               <div className="text-sm font-medium text-gray-900">
-                                {member.user?.full_name}
+                                {member.full_name}
                               </div>
-                              {member.user?.roles && member.user.roles.length > 0 && (
-                                <div className="flex flex-wrap gap-1 mt-1">
-                                  {member.user.roles.map((role) => (
-                                    <span
-                                      key={role.id}
-                                      className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
-                                    >
-                                      {role.name}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
                             </div>
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {member.user?.email}
+                          {member.email}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {member.user?.employee_code}
+                          {member.employee_code}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {member.project_name}
+                          {member.department?.name || 'Chưa có phòng ban'}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {member.role_in_project}
+                        <td className="px-6 py-4 text-sm text-gray-900 max-w-xs">
+                          {member.projects && member.projects.length > 0 ? (
+                            <div className="space-y-1">
+                              {member.projects.slice(0, 2).map((project, index) => (
+                                <span
+                                  key={index}
+                                  className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full mr-1"
+                                  title={project}
+                                >
+                                  {project.length > 15 ? `${project.substring(0, 15)}...` : project}
+                                </span>
+                              ))}
+                              {member.projects.length > 2 && (
+                                <span className="text-xs text-gray-500">
+                                  +{member.projects.length - 2} khác
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-gray-400 text-xs">Chưa có dự án</span>
+                          )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           {loadingCVStatuses ? (
@@ -330,20 +347,29 @@ export default function PMMembersTab({ user }: PMMembersTabProps) {
                               <div className="h-5 bg-gray-200 rounded-full w-20"></div>
                             </div>
                           ) : (
-                            renderCVStatus(membersCVStatus[member.user_id] || 'Chưa cập nhật')
+                            renderCVStatus(membersCVStatus[member.id] || 'Chưa cập nhật')
                           )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <button
-                            onClick={() => handleViewCV(member)}
-                            className="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 transition-colors"
-                          >
-                            <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                            </svg>
-                            Xem CV
-                          </button>
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => handleViewCV(member)}
+                              className="p-1 text-blue-600 hover:text-blue-800 transition-colors"
+                              title="Xem CV"
+                            >
+                              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() => handleRequestCVUpdate(member)}
+                              className="p-1 text-yellow-600 hover:text-yellow-800 transition-colors"
+                              title="Yêu cầu cập nhật"
+                            >
+                              <MessageSquare className="h-4 w-4" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -384,14 +410,14 @@ export default function PMMembersTab({ user }: PMMembersTabProps) {
               <div className="flex-1">
                 <div className="flex items-center mb-2">
                   <h2 className="text-2xl font-bold text-[#333333]">
-                    {selectedMember.user?.full_name}
+                    {selectedMember.full_name}
                   </h2>
                 </div>
                 <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
-                  {selectedMember.user?.employee_code}
+                  {selectedMember.employee_code}
                 </span>
                 <p className="text-sm text-blue-600 font-medium mt-2">
-                  {selectedMember.project_name} • {selectedMember.role_in_project}
+                  {selectedMember.projects?.join(', ') || 'Chưa có dự án'} • {selectedMember.roles?.map(role => role.name).join(', ') || 'Chưa có vai trò'}
                 </p>
               </div>
 
@@ -472,24 +498,24 @@ export default function PMMembersTab({ user }: PMMembersTabProps) {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="text-sm font-medium text-gray-500">Email</label>
-                  <p className="text-gray-900 mt-1">{selectedMember.user?.email}</p>
+                  <p className="text-gray-900 mt-1">{selectedMember.email}</p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-500">Mã nhân viên</label>
-                  <p className="text-gray-900 mt-1">{selectedMember.user?.employee_code}</p>
+                  <p className="text-gray-900 mt-1">{selectedMember.employee_code}</p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-500">Dự án</label>
-                  <p className="text-gray-900 mt-1">{selectedMember.project_name}</p>
+                  <p className="text-gray-900 mt-1">{selectedMember.projects?.join(', ') || 'Chưa có dự án'}</p>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-500">Vai trò trong dự án</label>
-                  <p className="text-gray-900 mt-1">{selectedMember.role_in_project}</p>
+                  <label className="text-sm font-medium text-gray-500">Vai trò</label>
+                  <p className="text-gray-900 mt-1">{selectedMember.roles?.map(role => role.name).join(', ') || 'Chưa có vai trò'}</p>
                 </div>
-                {selectedMember.user?.department && (
+                {selectedMember.department && (
                   <div className="md:col-span-2">
                     <label className="text-sm font-medium text-gray-500">Phòng ban</label>
-                    <p className="text-gray-900 mt-1">{selectedMember.user.department.name}</p>
+                    <p className="text-gray-900 mt-1">{selectedMember.department.name}</p>
                   </div>
                 )}
               </div>
@@ -523,11 +549,11 @@ export default function PMMembersTab({ user }: PMMembersTabProps) {
                       <div className="col-span-2 flex flex-col justify-center items-center">
                         <div className="bg-yellow-300 px-4 py-2 mb-3">
                           <h1 className="text-xl font-bold text-black">
-                            {selectedMemberCV.details?.ho_ten || selectedMember.user?.full_name}
+                            {selectedMemberCV.details?.ho_ten || selectedMember.full_name}
                           </h1>
                         </div>
                         <div className="text-red-500 text-base font-medium">
-                          {selectedMemberCV.details?.chuc_danh || selectedMember.role_in_project || 'Chức danh'}
+                          {selectedMemberCV.details?.chuc_danh || selectedMember.roles?.map(role => role.name).join(', ') || 'Chức danh'}
                         </div>
                       </div>
                     </div>
@@ -537,7 +563,7 @@ export default function PMMembersTab({ user }: PMMembersTabProps) {
                   <div className="mb-10">
                     <h2 className="text-lg font-bold text-black mb-4 border-b border-gray-400 pb-2">TÓM TẮT</h2>
                     <div className="bg-yellow-300 inline-block px-3 py-2 text-sm font-medium text-black whitespace-pre-line">
-                      {selectedMemberCV.details?.tom_tat || `Tóm tắt kinh nghiệm và kỹ năng chuyên môn của ${selectedMember.user?.full_name}`}
+                      {selectedMemberCV.details?.tom_tat || `Tóm tắt kinh nghiệm và kỹ năng chuyên môn của ${selectedMember.full_name}`}
                     </div>
                   </div>
 
@@ -549,7 +575,7 @@ export default function PMMembersTab({ user }: PMMembersTabProps) {
                       <div>
                         <h3 className="text-sm font-semibold text-black mb-3">Thông tin cá nhân</h3>
                         <div className="bg-yellow-300 inline-block px-3 py-2 text-sm font-medium text-black whitespace-pre-line">
-                          {selectedMemberCV.details?.thong_tin_ca_nhan || `Email: ${selectedMember.user?.email}\nMã NV: ${selectedMember.user?.employee_code}\nDự án: ${selectedMember.project_name}\nVai trò: ${selectedMember.role_in_project}`}
+                          {selectedMemberCV.details?.thong_tin_ca_nhan || `Email: ${selectedMember.email}\nMã NV: ${selectedMember.employee_code}\nDự án: ${selectedMember.projects?.join(', ') || 'Chưa có dự án'}\nVai trò: ${selectedMember.roles?.map(role => role.name).join(', ') || 'Chưa có vai trò'}`}
                         </div>
                       </div>
                       <div>
@@ -574,7 +600,7 @@ export default function PMMembersTab({ user }: PMMembersTabProps) {
                   <div className="mb-8">
                     <h2 className="text-lg font-bold text-black mb-4 border-b border-gray-400 pb-2">KỸ NĂNG</h2>
                     <div className="bg-yellow-300 inline-block px-3 py-2 text-sm font-medium text-black whitespace-pre-line">
-                      {selectedMemberCV.details?.thong_tin_ki_nang || `Kỹ năng chuyên môn và kỹ năng mềm của ${selectedMember.user?.full_name}`}
+                      {selectedMemberCV.details?.thong_tin_ki_nang || `Kỹ năng chuyên môn và kỹ năng mềm của ${selectedMember.full_name}`}
                     </div>
                   </div>
                 </div>
@@ -589,7 +615,7 @@ export default function PMMembersTab({ user }: PMMembersTabProps) {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              Yêu cầu cập nhật CV - {selectedMemberForUpdate?.user?.full_name}
+              Yêu cầu cập nhật CV - {selectedMemberForUpdate?.full_name}
             </h3>
 
             <div className="mb-4">

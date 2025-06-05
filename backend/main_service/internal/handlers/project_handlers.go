@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -63,11 +64,18 @@ func GetProjects(c *gin.Context) {
 	var projects []models.Project
 
 	if slices.Contains(roleSlice, "Admin") {
-		// Admin can see all projects
-		fmt.Println("GetProjects: Admin access - fetching all projects")
+		// Admin can see all projects with member counts
+		fmt.Println("GetProjects: Admin access - fetching all projects with member counts")
 		rows, err := database.DB.Query(c, `
-			SELECT p.id, p.name, p.start_date, p.end_date
+			SELECT p.id, p.name, p.start_date, p.end_date,
+				   COALESCE(member_count.count, 0) as member_count
 			FROM projects p
+			LEFT JOIN (
+				SELECT project_id, COUNT(*) as count
+				FROM project_members
+				WHERE left_at IS NULL OR left_at > CURRENT_DATE
+				GROUP BY project_id
+			) member_count ON p.id = member_count.project_id
 			ORDER BY p.name`)
 		if err != nil {
 			fmt.Printf("GetProjects error: %v\n", err)
@@ -81,7 +89,8 @@ func GetProjects(c *gin.Context) {
 
 		for rows.Next() {
 			var project models.Project
-			err := rows.Scan(&project.ID, &project.Name, &project.StartDate, &project.EndDate)
+			var memberCount int
+			err := rows.Scan(&project.ID, &project.Name, &project.StartDate, &project.EndDate, &memberCount)
 			if err != nil {
 				fmt.Printf("GetProjects scan error: %v\n", err)
 				c.JSON(http.StatusInternalServerError, gin.H{
@@ -90,6 +99,7 @@ func GetProjects(c *gin.Context) {
 				})
 				return
 			}
+			project.MemberCount = memberCount
 			projects = append(projects, project)
 		}
 
@@ -102,12 +112,19 @@ func GetProjects(c *gin.Context) {
 			return
 		}
 	} else if slices.Contains(roleSlice, "PM") {
-		// PM can see projects they are members of
-		fmt.Printf("GetProjects: PM access - fetching projects for PM %s\n", userIDStr)
+		// PM can see projects they are members of with member counts
+		fmt.Printf("GetProjects: PM access - fetching projects for PM %s with member counts\n", userIDStr)
 		rows, err := database.DB.Query(c, `
-			SELECT DISTINCT p.id, p.name, p.start_date, p.end_date
+			SELECT DISTINCT p.id, p.name, p.start_date, p.end_date,
+				   COALESCE(member_count.count, 0) as member_count
 			FROM projects p
 			INNER JOIN project_members pm ON p.id = pm.project_id
+			LEFT JOIN (
+				SELECT project_id, COUNT(*) as count
+				FROM project_members
+				WHERE left_at IS NULL OR left_at > CURRENT_DATE
+				GROUP BY project_id
+			) member_count ON p.id = member_count.project_id
 			WHERE pm.user_id = $1
 			  AND (pm.left_at IS NULL OR pm.left_at > CURRENT_DATE)
 			ORDER BY p.name`, userIDStr)
@@ -123,7 +140,8 @@ func GetProjects(c *gin.Context) {
 
 		for rows.Next() {
 			var project models.Project
-			err := rows.Scan(&project.ID, &project.Name, &project.StartDate, &project.EndDate)
+			var memberCount int
+			err := rows.Scan(&project.ID, &project.Name, &project.StartDate, &project.EndDate, &memberCount)
 			if err != nil {
 				fmt.Printf("GetProjects scan error: %v\n", err)
 				c.JSON(http.StatusInternalServerError, gin.H{
@@ -132,6 +150,7 @@ func GetProjects(c *gin.Context) {
 				})
 				return
 			}
+			project.MemberCount = memberCount
 			projects = append(projects, project)
 		}
 
@@ -144,12 +163,19 @@ func GetProjects(c *gin.Context) {
 			return
 		}
 	} else {
-		// Employee can see projects they are members of
-		fmt.Printf("GetProjects: Employee access - fetching projects for user %s\n", userIDStr)
+		// Employee can see projects they are members of with member counts
+		fmt.Printf("GetProjects: Employee access - fetching projects for user %s with member counts\n", userIDStr)
 		rows, err := database.DB.Query(c, `
-			SELECT DISTINCT p.id, p.name, p.start_date, p.end_date
+			SELECT DISTINCT p.id, p.name, p.start_date, p.end_date,
+				   COALESCE(member_count.count, 0) as member_count
 			FROM projects p
 			INNER JOIN project_members pm ON p.id = pm.project_id
+			LEFT JOIN (
+				SELECT project_id, COUNT(*) as count
+				FROM project_members
+				WHERE left_at IS NULL OR left_at > CURRENT_DATE
+				GROUP BY project_id
+			) member_count ON p.id = member_count.project_id
 			WHERE pm.user_id = $1
 			  AND (pm.left_at IS NULL OR pm.left_at > CURRENT_DATE)
 			ORDER BY p.name`, userIDStr)
@@ -165,7 +191,8 @@ func GetProjects(c *gin.Context) {
 
 		for rows.Next() {
 			var project models.Project
-			err := rows.Scan(&project.ID, &project.Name, &project.StartDate, &project.EndDate)
+			var memberCount int
+			err := rows.Scan(&project.ID, &project.Name, &project.StartDate, &project.EndDate, &memberCount)
 			if err != nil {
 				fmt.Printf("GetProjects scan error: %v\n", err)
 				c.JSON(http.StatusInternalServerError, gin.H{
@@ -174,6 +201,7 @@ func GetProjects(c *gin.Context) {
 				})
 				return
 			}
+			project.MemberCount = memberCount
 			projects = append(projects, project)
 		}
 
@@ -348,9 +376,17 @@ func CreateProject(c *gin.Context) {
 // UpdateProject updates an existing project
 func UpdateProject(c *gin.Context) {
 	id := c.Param("id")
+	fmt.Printf("UpdateProject: Updating project %s\n", id)
 
-	var projectData models.Project
-	if err := c.ShouldBindJSON(&projectData); err != nil {
+	// Use a custom struct to handle date strings properly
+	var req struct {
+		Name      string `json:"name"`
+		StartDate string `json:"start_date,omitempty"`
+		EndDate   string `json:"end_date,omitempty"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		fmt.Printf("UpdateProject bind error: %v\n", err)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  "error",
 			"message": "Invalid project data",
@@ -358,13 +394,257 @@ func UpdateProject(c *gin.Context) {
 		return
 	}
 
-	// TODO: Update in database
-	// Mock response for now
-	projectData.ID = id
+	fmt.Printf("UpdateProject: Received data: %+v\n", req)
+
+	// Validate required fields
+	if req.Name == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"message": "Project name is required",
+		})
+		return
+	}
+
+	// Check if project exists
+	var projectExists bool
+	err := database.DB.QueryRow(c, "SELECT EXISTS(SELECT 1 FROM projects WHERE id = $1)", id).Scan(&projectExists)
+	if err != nil {
+		fmt.Printf("UpdateProject project check error: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Error checking project existence",
+		})
+		return
+	}
+
+	if !projectExists {
+		c.JSON(http.StatusNotFound, gin.H{
+			"status":  "error",
+			"message": "Project not found",
+		})
+		return
+	}
+
+	// Parse dates if provided
+	var startDate *time.Time
+	var endDate *time.Time
+
+	if req.StartDate != "" {
+		if parsedStartDate, err := time.Parse("2006-01-02", req.StartDate); err == nil {
+			startDate = &parsedStartDate
+		} else {
+			fmt.Printf("UpdateProject: Invalid start_date format: %v\n", err)
+			c.JSON(http.StatusBadRequest, gin.H{
+				"status":  "error",
+				"message": "Invalid start_date format. Use YYYY-MM-DD",
+			})
+			return
+		}
+	}
+
+	if req.EndDate != "" {
+		if parsedEndDate, err := time.Parse("2006-01-02", req.EndDate); err == nil {
+			endDate = &parsedEndDate
+		} else {
+			fmt.Printf("UpdateProject: Invalid end_date format: %v\n", err)
+			c.JSON(http.StatusBadRequest, gin.H{
+				"status":  "error",
+				"message": "Invalid end_date format. Use YYYY-MM-DD",
+			})
+			return
+		}
+	}
+
+	// Build dynamic update query
+	setParts := []string{}
+	args := []interface{}{}
+	argIndex := 1
+
+	setParts = append(setParts, fmt.Sprintf("name = $%d", argIndex))
+	args = append(args, req.Name)
+	argIndex++
+
+	// Handle optional start_date
+	if startDate != nil {
+		setParts = append(setParts, fmt.Sprintf("start_date = $%d", argIndex))
+		args = append(args, *startDate)
+		argIndex++
+	} else {
+		setParts = append(setParts, fmt.Sprintf("start_date = $%d", argIndex))
+		args = append(args, nil)
+		argIndex++
+	}
+
+	// Handle optional end_date
+	if endDate != nil {
+		setParts = append(setParts, fmt.Sprintf("end_date = $%d", argIndex))
+		args = append(args, *endDate)
+		argIndex++
+	} else {
+		setParts = append(setParts, fmt.Sprintf("end_date = $%d", argIndex))
+		args = append(args, nil)
+		argIndex++
+	}
+
+	// Add project ID as the last parameter for WHERE clause
+	args = append(args, id)
+
+	query := fmt.Sprintf("UPDATE projects SET %s WHERE id = $%d", strings.Join(setParts, ", "), argIndex)
+
+	fmt.Printf("UpdateProject query: %s\n", query)
+	fmt.Printf("UpdateProject args: %v\n", args)
+
+	result, err := database.DB.Exec(c, query, args...)
+	if err != nil {
+		fmt.Printf("UpdateProject update error: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Error updating project",
+		})
+		return
+	}
+
+	// Check if any rows were affected
+	rowsAffected := result.RowsAffected()
+	if rowsAffected == 0 {
+		fmt.Printf("UpdateProject: No rows affected for project %s\n", id)
+		c.JSON(http.StatusNotFound, gin.H{
+			"status":  "error",
+			"message": "Project not found",
+		})
+		return
+	}
+
+	// Fetch the updated project to return
+	var updatedProject models.Project
+	err = database.DB.QueryRow(c,
+		"SELECT id, name, start_date, end_date FROM projects WHERE id = $1",
+		id).Scan(&updatedProject.ID, &updatedProject.Name, &updatedProject.StartDate, &updatedProject.EndDate)
+	if err != nil {
+		fmt.Printf("UpdateProject fetch error: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Error fetching updated project",
+		})
+		return
+	}
+
+	fmt.Printf("UpdateProject: Successfully updated project %s\n", id)
 
 	c.JSON(http.StatusOK, gin.H{
 		"status": "success",
-		"data":   projectData,
+		"data":   updatedProject,
+	})
+}
+
+// DeleteProject deletes an existing project
+func DeleteProject(c *gin.Context) {
+	id := c.Param("id")
+	fmt.Printf("DeleteProject: Deleting project %s\n", id)
+
+	// Check if project exists
+	var projectExists bool
+	var projectName string
+	err := database.DB.QueryRow(c, "SELECT EXISTS(SELECT 1 FROM projects WHERE id = $1), COALESCE((SELECT name FROM projects WHERE id = $1), '')", id).Scan(&projectExists, &projectName)
+	if err != nil {
+		fmt.Printf("DeleteProject project check error: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Error checking project existence",
+		})
+		return
+	}
+
+	if !projectExists {
+		c.JSON(http.StatusNotFound, gin.H{
+			"status":  "error",
+			"message": "Project not found",
+		})
+		return
+	}
+
+	// Check if project has any members (optional warning, but we'll allow deletion)
+	var memberCount int
+	err = database.DB.QueryRow(c,
+		"SELECT COUNT(*) FROM project_members WHERE project_id = $1 AND (left_at IS NULL OR left_at > CURRENT_DATE)",
+		id).Scan(&memberCount)
+	if err != nil {
+		fmt.Printf("DeleteProject member count error: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Error checking project members",
+		})
+		return
+	}
+
+	fmt.Printf("DeleteProject: Project %s has %d active members\n", id, memberCount)
+
+	// Start database transaction for safe deletion
+	tx, err := database.DB.Begin(c)
+	if err != nil {
+		fmt.Printf("DeleteProject transaction error: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Error starting database transaction",
+		})
+		return
+	}
+	defer tx.Rollback(c) // Will be ignored if transaction is committed
+
+	// First, remove all project members (set left_at to current date)
+	_, err = tx.Exec(c, "UPDATE project_members SET left_at = CURRENT_DATE WHERE project_id = $1 AND (left_at IS NULL OR left_at > CURRENT_DATE)", id)
+	if err != nil {
+		fmt.Printf("DeleteProject member removal error: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Error removing project members",
+		})
+		return
+	}
+
+	// Delete the project
+	result, err := tx.Exec(c, "DELETE FROM projects WHERE id = $1", id)
+	if err != nil {
+		fmt.Printf("DeleteProject delete error: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Error deleting project",
+		})
+		return
+	}
+
+	// Check if any rows were affected
+	rowsAffected := result.RowsAffected()
+	if rowsAffected == 0 {
+		fmt.Printf("DeleteProject: No rows affected for project %s\n", id)
+		c.JSON(http.StatusNotFound, gin.H{
+			"status":  "error",
+			"message": "Project not found",
+		})
+		return
+	}
+
+	// Commit the transaction
+	err = tx.Commit(c)
+	if err != nil {
+		fmt.Printf("DeleteProject commit error: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Error committing project deletion",
+		})
+		return
+	}
+
+	fmt.Printf("DeleteProject: Successfully deleted project %s (%s) with %d members\n", id, projectName, memberCount)
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "success",
+		"message": fmt.Sprintf("Project '%s' deleted successfully", projectName),
+		"data": gin.H{
+			"id":           id,
+			"name":         projectName,
+			"member_count": memberCount,
+		},
 	})
 }
 
@@ -657,97 +937,77 @@ func GetAllMembersOfAllProjects(c *gin.Context) {
 		return
 	}
 
-	// PM can see all members of projects they are involved in
-	fmt.Printf("GetAllMembersOfAllProjects: PM access - fetching project members for PM %s\n", requestUserIDStr)
+	// PM can see all members of projects they are involved in, grouped by user
+	fmt.Printf("GetAllMembersOfAllProjects: PM access - fetching grouped project members for PM %s\n", requestUserIDStr)
 
 	query := `
-		SELECT DISTINCT
-			pm.project_id,
-			pm.user_id,
-			pm.role_in_project,
-			pm.joined_at,
-			pm.left_at,
-			p.name as project_name,
-			u.id,
-			u.employee_code,
-			u.full_name,
-			u.email,
-			d.id,
-			d.name
-		FROM project_members pm
-		INNER JOIN projects p ON pm.project_id = p.id
-		INNER JOIN users u ON pm.user_id = u.id
+		SELECT u.id, u.employee_code, u.full_name, u.email, u.department_id,
+		       COALESCE(d.name, '') as department_name,
+		       COALESCE(string_agg(p.name, ', ' ORDER BY p.name), '') as project_names
+		FROM users u
 		LEFT JOIN departments d ON u.department_id = d.id
+		INNER JOIN project_members pm ON u.id = pm.user_id
+		INNER JOIN projects p ON pm.project_id = p.id
 		INNER JOIN project_members pm_check ON p.id = pm_check.project_id
 		WHERE pm_check.user_id = $1
 		  AND (pm.left_at IS NULL OR pm.left_at > CURRENT_DATE)
 		  AND (pm_check.left_at IS NULL OR pm_check.left_at > CURRENT_DATE)
-		ORDER BY p.name, pm.joined_at`
-	args := []interface{}{requestUserIDStr}
+		GROUP BY u.id, u.employee_code, u.full_name, u.email, u.department_id, d.name
+		ORDER BY u.full_name`
 
 	// Execute query
-	rows, err := database.DB.Query(c, query, args...)
+	rows, err := database.DB.Query(c, query, requestUserIDStr)
 	if err != nil {
 		fmt.Printf("GetAllMembersOfAllProjects error: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
-			"message": "Error fetching project members",
+			"message": "Error fetching grouped project members",
 		})
 		return
 	}
 	defer rows.Close()
 
-	// Structure to hold member with project info
-	type MemberWithProject struct {
-		models.Member
-		ProjectName string `json:"project_name"`
-	}
-
-	var members []MemberWithProject
+	var users []models.User
 	for rows.Next() {
-		var member MemberWithProject
 		var user models.User
-		var department models.Department
-		var leftAt *time.Time
-		var departmentID *string
-		var departmentName *string
+		var deptName string
+		var projectNames string
 
-		err := rows.Scan(
-			&member.ProjectID,
-			&member.UserID,
-			&member.RoleInProject,
-			&member.JoinedAt,
-			&leftAt,
-			&member.ProjectName,
-			&user.ID,
-			&user.EmployeeCode,
-			&user.FullName,
-			&user.Email,
-			&departmentID,
-			&departmentName,
-		)
+		err := rows.Scan(&user.ID, &user.EmployeeCode, &user.FullName,
+			&user.Email, &user.DepartmentID, &deptName, &projectNames)
 		if err != nil {
 			fmt.Printf("GetAllMembersOfAllProjects scan error: %v\n", err)
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"status":  "error",
-				"message": "Error parsing member data",
+				"message": "Error parsing user data",
 			})
 			return
 		}
 
-		// Set optional fields
-		if leftAt != nil {
-			member.LeftAt = *leftAt
+		// Set department if available
+		if user.DepartmentID != "" && deptName != "" {
+			user.Department = models.Department{
+				ID:   user.DepartmentID,
+				Name: deptName,
+			}
 		}
 
-		if departmentID != nil && departmentName != nil {
-			department.ID = *departmentID
-			department.Name = *departmentName
-			user.Department = department
+		// Convert project names string to slice
+		if projectNames != "" {
+			user.Projects = strings.Split(projectNames, ", ")
+		} else {
+			user.Projects = []string{}
 		}
 
-		member.User = user
-		members = append(members, member)
+		// Get user roles
+		userRoles, err := getUserRoles(c, user.ID)
+		if err != nil {
+			fmt.Printf("Warning: Could not fetch roles for user %s: %v\n", user.ID, err)
+		} else {
+			user.Roles = userRoles
+		}
+
+		users = append(users, user)
 	}
 
 	// Check for errors during iteration
@@ -755,14 +1015,14 @@ func GetAllMembersOfAllProjects(c *gin.Context) {
 		fmt.Printf("GetAllMembersOfAllProjects iteration error: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
-			"message": "Error reading member data",
+			"message": "Error reading user data",
 		})
 		return
 	}
 
-	fmt.Printf("GetAllMembersOfAllProjects: Returning %d members for request from user %s\n", len(members), requestUserIDStr)
+	fmt.Printf("GetAllMembersOfAllProjects: Returning %d users for request from user %s\n", len(users), requestUserIDStr)
 	c.JSON(http.StatusOK, gin.H{
 		"status": "success",
-		"data":   members,
+		"data":   users,
 	})
 }
