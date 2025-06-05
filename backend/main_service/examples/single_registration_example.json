@@ -1,0 +1,12 @@
+{
+  "users": [
+    {
+      "employee_code": "EMP004",
+      "full_name": "Pham Van D",
+      "email": "phamvand@example.com",
+      "password": "password123",
+      "department_id": "9c6bc29a-1cb9-4018-8397-d318ade4ab64",
+      "role_names": ["Employee", "PM"]
+    }
+  ]
+}

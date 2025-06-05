@@ -28,6 +28,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         // Check if we have a token before trying to get user data
         const token = localStorage.getItem('token');
+        const refreshToken = localStorage.getItem('refreshToken');
+
         if (!token) {
           // No token, user is not logged in
           setUser(null);
@@ -36,11 +38,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        // We have a token, try to get user data
+        // Check if token is expired before making API call
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          const currentTime = Date.now() / 1000;
+
+          // If token is expired and we don't have a refresh token, clear everything
+          if (payload.exp < currentTime && !refreshToken) {
+            localStorage.removeItem('token');
+            localStorage.removeItem('refreshToken');
+            setUser(null);
+            setError(null);
+            setLoading(false);
+            return;
+          }
+        } catch (tokenParseError) {
+          // Invalid token format, clear it
+          localStorage.removeItem('token');
+          localStorage.removeItem('refreshToken');
+          setUser(null);
+          setError(null);
+          setLoading(false);
+          return;
+        }
+
+        // We have a valid token, try to get user data
         const userData = await getCurrentUser();
         setUser(userData);
         setError(null);
       } catch (err) {
+        // Clear tokens on authentication error
+        localStorage.removeItem('token');
+        localStorage.removeItem('refreshToken');
         setUser(null);
 
         // Only redirect to login if not already on a public page

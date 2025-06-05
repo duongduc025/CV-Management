@@ -10,6 +10,13 @@ export default function Home() {
   const { user, loading } = useAuth();
   const router = useRouter();
 
+  useEffect(() => {
+    // If user is already logged in, redirect to dashboard
+    if (!loading && user) {
+      router.push('/dashboard');
+    }
+  }, [loading, user, router]);
+
   // Show loading state while checking authentication
   if (loading) {
     return <LoadingPage />;

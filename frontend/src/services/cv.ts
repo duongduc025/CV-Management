@@ -2,6 +2,14 @@ import axios from 'axios';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
 
+// Ensure auth token is set for CV requests
+const setAuthToken = () => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+  }
+};
+
 export interface CVDetail {
   id?: string;
   cv_id?: string;
@@ -56,6 +64,19 @@ export const getUserCV = async (): Promise<CV> => {
   }
 };
 
+// Get CV by user ID (for PM/BUL access)
+export const getUserCVByUserId = async (userId: string): Promise<CV> => {
+  try {
+    const response = await axios.get(`${API_URL}/cv/user/${userId}`);
+    return response.data.data;
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response) {
+      throw new Error(error.response.data.message || 'Failed to fetch user CV');
+    }
+    throw new Error('Failed to fetch user CV. Please try again.');
+  }
+};
+
 // Create a new CV or update existing CV
 export const createOrUpdateCV = async (cvData: CVCreateRequest): Promise<CV> => {
   try {
@@ -104,4 +125,90 @@ export const mapParsedDataToCVRequest = (parsedData: any, existingData?: CVCreat
     thong_tin_ki_nang: parsedData.thong_tin_ki_nang || parsedData.skills || parsedData.technical_skills || existingData?.thong_tin_ki_nang || '',
     cv_path: cvPath || existingData?.cv_path || '', // Save the uploaded CV path
   };
+};
+
+// CV Update Request interfaces
+export interface CVUpdateRequest {
+  id: string;
+  cv_id: string;
+  requested_by: string;
+  requested_at: string;
+  status: 'Đang yêu cầu' | 'Đã xử lý' | 'Đã huỷ';
+  is_read?: boolean;
+}
+
+export interface CVUpdateRequestResponse {
+  status: string;
+  message?: string;
+  data: CVUpdateRequest;
+}
+
+// Create a CV update request
+export const createCVUpdateRequest = async (cvId: string, content?: string): Promise<{ data: CVUpdateRequest; message: string }> => {
+  try {
+    setAuthToken(); // Ensure auth token is set
+    console.log('Creating CV update request for CV ID:', cvId, 'with content:', content);
+    const requestData: { cv_id: string; content?: string } = { cv_id: cvId };
+    if (content && content.trim()) {
+      requestData.content = content.trim();
+    }
+    const response = await axios.post(`${API_URL}/requests`, requestData);
+    console.log('CV update request response:', response.data);
+    return {
+      data: response.data.data,
+      message: response.data.message || 'Yêu cầu cập nhật CV đã được tạo thành công'
+    };
+  } catch (error) {
+    console.error('CV update request error:', error);
+    if (axios.isAxiosError(error) && error.response) {
+      throw new Error(error.response.data.message || 'Failed to create CV update request');
+    }
+    throw new Error('Failed to create CV update request. Please try again.');
+  }
+};
+
+// Get CV update requests
+export const getCVUpdateRequests = async (): Promise<CVUpdateRequest[]> => {
+  try {
+    const response = await axios.get(`${API_URL}/requests`);
+    return response.data.data;
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response) {
+      throw new Error(error.response.data.message || 'Failed to fetch CV update requests');
+    }
+    throw new Error('Failed to fetch CV update requests. Please try again.');
+  }
+};
+
+// Mark a specific CV update request as read
+export const markCVRequestAsRead = async (requestId: string): Promise<void> => {
+  try {
+    setAuthToken(); // Ensure auth token is set
+    console.log('Marking CV request as read:', requestId);
+    const response = await axios.put(`${API_URL}/requests/${requestId}/read`);
+    console.log('Mark as read response:', response.data);
+  } catch (error) {
+    console.error('Mark CV request as read error:', error);
+    if (axios.isAxiosError(error) && error.response) {
+      throw new Error(error.response.data.message || 'Failed to mark request as read');
+    }
+    throw new Error('Failed to mark request as read. Please try again.');
+  }
+};
+
+// Mark all CV update requests as read
+export const markAllCVRequestsAsRead = async (): Promise<{ updated_count: number }> => {
+  try {
+    setAuthToken(); // Ensure auth token is set
+    console.log('Marking all CV requests as read');
+    const response = await axios.put(`${API_URL}/requests/mark-all-read`);
+    console.log('Mark all as read response:', response.data);
+    return response.data.data;
+  } catch (error) {
+    console.error('Mark all CV requests as read error:', error);
+    if (axios.isAxiosError(error) && error.response) {
+      throw new Error(error.response.data.message || 'Failed to mark all requests as read');
+    }
+    throw new Error('Failed to mark all requests as read. Please try again.');
+  }
 };

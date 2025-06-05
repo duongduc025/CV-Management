@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
+import { useNotifications } from '@/contexts/NotificationContext';
 import RoleSwitcherNavbar from '@/components/RoleSwitcherNavbar';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -19,7 +20,7 @@ interface Notification {
 export default function NotificationsPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
 
   useEffect(() => {
@@ -28,51 +29,7 @@ export default function NotificationsPage() {
       router.push('/login');
       return;
     }
-
-    // Mock notifications data
-    if (user) {
-      setNotifications([
-        {
-          id: '1',
-          title: 'CV Updated Successfully',
-          message: 'Your CV has been updated and is now available for review.',
-          type: 'success',
-          read: false,
-          createdAt: '2024-01-15T10:30:00Z'
-        },
-        {
-          id: '2',
-          title: 'Profile Completion Required',
-          message: 'Please complete your profile information to ensure accurate records.',
-          type: 'warning',
-          read: true,
-          createdAt: '2024-01-14T14:20:00Z'
-        },
-        {
-          id: '3',
-          title: 'Welcome to the System',
-          message: 'Welcome! Please take a moment to set up your profile and CV.',
-          type: 'info',
-          read: true,
-          createdAt: '2024-01-13T09:00:00Z'
-        }
-      ]);
-    }
   }, [loading, user, router]);
-
-  const markAsRead = (id: string) => {
-    setNotifications(prev => 
-      prev.map(notif => 
-        notif.id === id ? { ...notif, read: true } : notif
-      )
-    );
-  };
-
-  const markAllAsRead = () => {
-    setNotifications(prev => 
-      prev.map(notif => ({ ...notif, read: true }))
-    );
-  };
 
   const getTypeIcon = (type: string) => {
     switch (type) {
@@ -116,11 +73,9 @@ export default function NotificationsPage() {
     return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  const filteredNotifications = filter === 'unread' 
+  const filteredNotifications = filter === 'unread'
     ? notifications.filter(n => !n.read)
     : notifications;
-
-  const unreadCount = notifications.filter(n => !n.read).length;
 
   if (loading) {
     return (
@@ -167,7 +122,7 @@ export default function NotificationsPage() {
                   Unread ({unreadCount})
                 </Button>
               </div>
-              
+
               {unreadCount > 0 && (
                 <Button
                   variant="outline"
@@ -192,7 +147,7 @@ export default function NotificationsPage() {
                     {filter === 'unread' ? 'No Unread Notifications' : 'No Notifications'}
                   </h3>
                   <p className="text-gray-600">
-                    {filter === 'unread' 
+                    {filter === 'unread'
                       ? 'You\'re all caught up! No unread notifications at the moment.'
                       : 'You don\'t have any notifications yet.'
                     }
@@ -200,8 +155,8 @@ export default function NotificationsPage() {
                 </Card>
               ) : (
                 filteredNotifications.map((notification) => (
-                  <Card 
-                    key={notification.id} 
+                  <Card
+                    key={notification.id}
                     className={`p-4 cursor-pointer transition-colors ${
                       !notification.read ? 'bg-blue-50 border-blue-200' : 'hover:bg-gray-50'
                     }`}
@@ -209,7 +164,7 @@ export default function NotificationsPage() {
                   >
                     <div className="flex items-start space-x-4">
                       {getTypeIcon(notification.type)}
-                      
+
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
                           <h3 className={`text-sm font-medium ${
@@ -240,7 +195,7 @@ export default function NotificationsPage() {
                 variant="outline"
                 onClick={() => router.push('/employee/profile')}
               >
-                ← Back to My Profile
+                ← Trở về
               </Button>
             </div>
           </div>

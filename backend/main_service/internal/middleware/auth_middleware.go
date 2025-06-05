@@ -121,11 +121,6 @@ func BULOnly() gin.HandlerFunc {
 	return RoleMiddleware("BUL/Lead")
 }
 
-// PMOrBUL is a shortcut middleware for PM or BUL roles
-func PMOrBUL() gin.HandlerFunc {
-	return RoleMiddleware("PM", "BUL/Lead")
-}
-
 // AdminOrPMOrBUL is a shortcut middleware for Admin, PM, or BUL roles
 func AdminOrPMOrBUL() gin.HandlerFunc {
 	return RoleMiddleware("Admin", "PM", "BUL/Lead")

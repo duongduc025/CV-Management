@@ -1,4 +1,6 @@
 import axios from 'axios';
+// Import User interface from user service for backward compatibility
+import type { User } from './user';
 
 // Make sure the API URL points to the correct backend
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
@@ -27,6 +29,18 @@ axios.interceptors.response.use(
           throw new Error('No refresh token available');
         }
 
+        // Check if refresh token is expired before using it
+        try {
+          const payload = JSON.parse(atob(refreshToken.split('.')[1]));
+          const currentTime = Date.now() / 1000;
+
+          if (payload.exp < currentTime) {
+            throw new Error('Refresh token is expired');
+          }
+        } catch (tokenParseError) {
+          throw new Error('Invalid refresh token format');
+        }
+
         const response = await axios.post(`${API_URL}/auth/refresh`, {
           refresh_token: refreshToken
         });
@@ -45,10 +59,16 @@ axios.interceptors.response.use(
         return axios(originalRequest);
       } catch (refreshError) {
         console.error('Token refresh failed:', refreshError);
-        // Clear tokens and redirect to login
+        // Clear tokens and redirect to login only if not already on a public page
         localStorage.removeItem('token');
         localStorage.removeItem('refreshToken');
-        window.location.href = '/login';
+        setAuthToken(null);
+
+        // Only redirect if not already on login/register/landing page
+        const currentPath = window.location.pathname;
+        if (!['/login', '/register', '/'].includes(currentPath)) {
+          window.location.href = '/login';
+        }
       }
     }
 
@@ -71,21 +91,7 @@ export interface RegisterData {
   roleNames: string[];
 }
 
-export interface User {
-  id: string;
-  employee_code: string;
-  full_name: string;
-  email: string;
-  departmentId?: string;
-  department?: {
-    id: string;
-    name: string;
-  };
-  roles?: Array<{
-    id: string;
-    name: string;
-  }>;
-}
+export type { User };
 
 export interface AuthResponse {
   status: string;
@@ -146,7 +152,7 @@ export const setAuthToken = (token: string | null) => {
   }
 };
 
-// Register user
+// Register user (now uses mass registration format with single user)
 export const register = async (registerData: RegisterData): Promise<{ status: string; message: string }> => {
   try {
     console.log('Sending registration data:', {
@@ -155,12 +161,14 @@ export const register = async (registerData: RegisterData): Promise<{ status: st
     });
 
     const response = await axios.post(`${API_URL}/auth/register`, {
-      employee_code: registerData.employeeCode,
-      full_name: registerData.fullName,
-      email: registerData.email,
-      password: registerData.password,
-      department_id: registerData.departmentId,
-      role_names: registerData.roleNames,
+      users: [{
+        employee_code: registerData.employeeCode,
+        full_name: registerData.fullName,
+        email: registerData.email,
+        password: registerData.password,
+        department_id: registerData.departmentId,
+        role_names: registerData.roleNames,
+      }]
     });
     return response.data;
   } catch (error) {
@@ -249,16 +257,38 @@ export const logout = async (): Promise<void> => {
 export const getCurrentUser = async (): Promise<User> => {
   try {
     const token = localStorage.getItem('token');
-    if (token) {
-      setAuthToken(token);
+    if (!token) {
+      throw new Error('No token available');
     }
 
+    // Validate token format and expiration before making API call
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const currentTime = Date.now() / 1000;
+
+      // If token is expired, don't make the API call
+      if (payload.exp < currentTime) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('refreshToken');
+        setAuthToken(null);
+        throw new Error('Token is expired');
+      }
+    } catch (tokenParseError) {
+      // Invalid token format
+      localStorage.removeItem('token');
+      localStorage.removeItem('refreshToken');
+      setAuthToken(null);
+      throw new Error('Invalid token format');
+    }
+
+    setAuthToken(token);
     const response = await axios.get(`${API_URL}/profile`);
     return response.data.data;
   } catch (error) {
     if (axios.isAxiosError(error) && error.response?.status === 401) {
       // Token expired or invalid
       localStorage.removeItem('token');
+      localStorage.removeItem('refreshToken');
       setAuthToken(null);
     }
     throw error;
@@ -311,62 +341,3 @@ export const getRoles = async (): Promise<Role[]> => {
   }
 };
 
-// User management functions for admin
-export const getUsers = async (): Promise<User[]> => {
-  try {
-    const response = await axios.get(`${API_URL}/users`);
-    return response.data.data;
-  } catch (error) {
-    if (axios.isAxiosError(error) && error.response) {
-      throw new Error(error.response.data.message || 'Failed to fetch users');
-    }
-    throw new Error('Failed to fetch users. Please try again.');
-  }
-};
-
-export const getUserById = async (id: string): Promise<User> => {
-  try {
-    const response = await axios.get(`${API_URL}/users/${id}`);
-    return response.data.data;
-  } catch (error) {
-    if (axios.isAxiosError(error) && error.response) {
-      throw new Error(error.response.data.message || 'Failed to fetch user');
-    }
-    throw new Error('Failed to fetch user. Please try again.');
-  }
-};
-
-export const createUser = async (userData: Omit<User, 'id'>): Promise<User> => {
-  try {
-    const response = await axios.post(`${API_URL}/users`, userData);
-    return response.data.data;
-  } catch (error) {
-    if (axios.isAxiosError(error) && error.response) {
-      throw new Error(error.response.data.message || 'Failed to create user');
-    }
-    throw new Error('Failed to create user. Please try again.');
-  }
-};
-
-export const updateUser = async (id: string, userData: Partial<User>): Promise<User> => {
-  try {
-    const response = await axios.put(`${API_URL}/users/${id}`, userData);
-    return response.data.data;
-  } catch (error) {
-    if (axios.isAxiosError(error) && error.response) {
-      throw new Error(error.response.data.message || 'Failed to update user');
-    }
-    throw new Error('Failed to update user. Please try again.');
-  }
-};
-
-export const deleteUser = async (id: string): Promise<void> => {
-  try {
-    await axios.delete(`${API_URL}/users/${id}`);
-  } catch (error) {
-    if (axios.isAxiosError(error) && error.response) {
-      throw new Error(error.response.data.message || 'Failed to delete user');
-    }
-    throw new Error('Failed to delete user. Please try again.');
-  }
-};

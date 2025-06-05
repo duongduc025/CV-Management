@@ -59,7 +59,7 @@ export default function DashboardPage() {
       return (
         <div className="space-y-6">
           <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">Select Your Dashboard</h2>
+            <h2 className="text-2xl font-bold text-brand-gray mb-4">Select Your Dashboard</h2>
             <p className="text-gray-600 mb-6">
               You have multiple roles. Choose which dashboard you'd like to access:
             </p>
@@ -73,26 +73,26 @@ export default function DashboardPage() {
                 switch (role.name) {
                   case 'Admin':
                     href = '/admin';
-                    bgColor = 'bg-purple-100';
-                    textColor = 'text-purple-800';
+                    bgColor = 'bg-red-50';
+                    textColor = 'text-brand-red';
                     description = 'Full system administration';
                     break;
                   case 'PM':
                     href = '/pm/dashboard';
-                    bgColor = 'bg-blue-100';
-                    textColor = 'text-blue-800';
+                    bgColor = 'bg-red-50';
+                    textColor = 'text-brand-red';
                     description = 'Project management tools';
                     break;
                   case 'BUL/Lead':
                     href = '/bulorlead/dashboard';
-                    bgColor = 'bg-green-100';
-                    textColor = 'text-green-800';
+                    bgColor = 'bg-green-50';
+                    textColor = 'text-brand-green';
                     description = 'Team leadership dashboard';
                     break;
                   case 'Employee':
                     href = '/employee/dashboard';
-                    bgColor = 'bg-indigo-100';
-                    textColor = 'text-indigo-800';
+                    bgColor = 'bg-gray-50';
+                    textColor = 'text-brand-gray';
                     description = 'Personal workspace';
                     break;
                 }

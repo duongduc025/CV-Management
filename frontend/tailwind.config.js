@@ -42,6 +42,12 @@ module.exports = {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
         },
+        // Custom brand colors
+        brand: {
+          red: '#E60012',
+          green: '#83C21E',
+          gray: '#333333',
+        },
       },
       borderRadius: {
         lg: 'var(--radius)',
@@ -51,4 +57,4 @@ module.exports = {
     },
   },
   plugins: [],
-} 
+}

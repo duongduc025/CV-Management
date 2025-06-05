@@ -166,7 +166,7 @@ export default function MyAccountPage() {
                 variant="outline"
                 onClick={() => router.push('/employee/dashboard')}
               >
-                ← Back to My Profile
+                ← Trở về
               </Button>
             </div>
           </div>

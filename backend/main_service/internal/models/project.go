@@ -10,5 +10,10 @@ type Project struct {
 	Name      string    `json:"name" db:"name"`
 	StartDate time.Time `json:"start_date,omitempty" db:"start_date"`
 	EndDate   time.Time `json:"end_date,omitempty" db:"end_date"`
-	Members   []Member  `json:"members,omitempty" db:"-"`
+}
+
+type ProjectCreateRequest struct {
+	Name      string `json:"name" binding:"required"`
+	StartDate string `json:"start_date,omitempty"`
+	EndDate   string `json:"end_date,omitempty"`
 }

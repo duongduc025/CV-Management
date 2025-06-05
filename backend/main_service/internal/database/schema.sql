@@ -54,13 +54,11 @@ CREATE TABLE cv_update_requests (
     cv_id UUID REFERENCES cv(id) ON DELETE CASCADE,
     requested_by UUID REFERENCES users(id),
     requested_at TIMESTAMP DEFAULT NOW(),
-    status VARCHAR(20) NOT NULL CHECK (status IN ('Đang yêu cầu', 'Đã xử lý', 'Đã huỷ'))
+    status VARCHAR(20) NOT NULL CHECK (status IN ('Đang yêu cầu', 'Đã xử lý', 'Đã huỷ')),
+    is_read BOOLEAN DEFAULT FALSE,
+    content TEXT
 );
 
--- Chỉ cho phép một bản ghi 'Đang yêu cầu' trên mỗi CV
-CREATE UNIQUE INDEX only_one_active_request_per_cv
-ON cv_update_requests(cv_id)
-WHERE status = 'Đang yêu cầu';
 
 -- Bảng roles
 CREATE TABLE roles (

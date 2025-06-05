@@ -29,7 +29,7 @@ export default function LoginPage() {
   if (authLoading) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center px-4 py-12 sm:px-6 lg:px-8 bg-gray-50">
-        <LoadingSpinner size="lg" message="Checking authentication..." />
+        <LoadingSpinner size="lg" message="Đang kiểm tra xác thực..." />
       </div>
     );
   }
@@ -72,7 +72,7 @@ export default function LoginPage() {
         router.push('/dashboard');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed. Please try again.');
+      setError(err instanceof Error ? err.message : 'Đăng nhập thất bại. Vui lòng thử lại.');
     } finally {
       setLoading(false);
     }
@@ -82,16 +82,16 @@ export default function LoginPage() {
     <div className="flex min-h-screen flex-col items-center justify-center px-4 py-12 sm:px-6 lg:px-8 bg-gray-50">
       <div className="w-full max-w-md space-y-8">
         <div>
-          <h2 className="mt-6 text-center text-3xl font-bold tracking-tight text-gray-900">
-            Sign in to your account
+          <h2 className="mt-6 text-center text-3xl font-bold tracking-tight text-brand-gray">
+            Đăng nhập vào tài khoản
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            Or{' '}
+            Hoặc{' '}
             <Link
               href="/register"
-              className="font-medium text-blue-600 hover:text-blue-500"
+              className="font-medium text-brand-red hover:text-red-700"
             >
-              create a new account
+              tạo tài khoản mới
             </Link>
           </p>
         </div>
@@ -106,7 +106,7 @@ export default function LoginPage() {
           <div className="space-y-4 rounded-md shadow-sm">
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                Email address
+                Địa chỉ email
               </label>
               <input
                 id="email"
@@ -116,14 +116,14 @@ export default function LoginPage() {
                 required
                 value={formData.email}
                 onChange={handleChange}
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
-                placeholder="Email address"
+                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-brand-red focus:outline-none focus:ring-brand-red sm:text-sm"
+                placeholder="Địa chỉ email"
               />
             </div>
 
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                Password
+                Mật khẩu
               </label>
               <input
                 id="password"
@@ -133,8 +133,8 @@ export default function LoginPage() {
                 required
                 value={formData.password}
                 onChange={handleChange}
-                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
-                placeholder="Password"
+                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-brand-red focus:outline-none focus:ring-brand-red sm:text-sm"
+                placeholder="Mật khẩu"
               />
             </div>
           </div>
@@ -143,9 +143,9 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="group relative flex w-full justify-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-75"
+              className="group relative flex w-full justify-center rounded-md border border-transparent bg-brand-red px-4 py-2 text-sm font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-brand-red focus:ring-offset-2 disabled:opacity-75"
             >
-              {loading ? 'Signing in...' : 'Sign in'}
+              {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
             </button>
           </div>
         </form>

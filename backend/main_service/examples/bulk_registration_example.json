@@ -1,0 +1,28 @@
+{
+  "users": [
+    {
+      "employee_code": "EMP001",
+      "full_name": "Nguyen Van A",
+      "email": "nguyenvana@example.com",
+      "password": "password123",
+      "department_id": "9c6bc29a-1cb9-4018-8397-d318ade4ab64",
+      "role_names": ["Employee", "PM"]
+    },
+    {
+      "employee_code": "EMP002",
+      "full_name": "Tran Thi B",
+      "email": "tranthib@example.com",
+      "password": "password123",
+      "department_id": "9c6bc29a-1cb9-4018-8397-d318ade4ab64",
+      "role_names": ["Employee"]
+    },
+    {
+      "employee_code": "EMP003",
+      "full_name": "Le Van C",
+      "email": "levanc@example.com",
+      "password": "password123",
+      "department_id": "f1648b6b-0a55-4fa5-b28b-4236c0e5266f",
+      "role_names": ["Employee", "BUL/Lead"]
+    }
+  ]
+}

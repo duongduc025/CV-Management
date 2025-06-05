@@ -11,4 +11,6 @@ type CVUpdateRequest struct {
 	RequestedBy string    `json:"requested_by" db:"requested_by"`
 	RequestedAt time.Time `json:"requested_at" db:"requested_at"`
 	Status      string    `json:"status" db:"status"` // Đang yêu cầu, Đã xử lý, Đã huỷ
+	IsRead      bool      `json:"is_read" db:"is_read"`
+	Content     *string   `json:"content" db:"content"` // Using pointer to handle NULL values
 }

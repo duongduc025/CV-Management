@@ -2,9 +2,11 @@
 
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import { useRoleScope } from '@/contexts/RoleScopeContext';
+import NotificationIcon from '@/components/NotificationIcon';
 
 interface RoleConfig {
   name: string;
@@ -19,39 +21,39 @@ interface RoleConfig {
 const ROLE_CONFIGS: Record<string, RoleConfig> = {
   'Admin': {
     name: 'Admin',
-    displayName: 'Administrator',
-    color: 'text-purple-700',
-    bgColor: 'bg-purple-100',
-    hoverColor: 'hover:bg-purple-200',
+    displayName: 'Quản trị viên',
+    color: 'text-brand-red',
+    bgColor: 'bg-red-50',
+    hoverColor: 'hover:bg-red-100',
     dashboardPath: '/admin',
-    description: 'Full system administration'
+    description: 'Quản trị toàn hệ thống'
   },
   'PM': {
     name: 'PM',
-    displayName: 'Project Manager',
-    color: 'text-blue-700',
-    bgColor: 'bg-blue-100',
-    hoverColor: 'hover:bg-blue-200',
+    displayName: 'Quản lý dự án',
+    color: 'text-brand-red',
+    bgColor: 'bg-red-50',
+    hoverColor: 'hover:bg-red-100',
     dashboardPath: '/pm/dashboard',
-    description: 'Project management tools'
+    description: 'Dành cho PM'
   },
   'BUL/Lead': {
     name: 'BUL/Lead',
-    displayName: 'Business Unit Lead',
-    color: 'text-green-700',
-    bgColor: 'bg-green-100',
-    hoverColor: 'hover:bg-green-200',
+    displayName: 'Quản lý đơn vị',
+    color: 'text-brand-green',
+    bgColor: 'bg-green-50',
+    hoverColor: 'hover:bg-green-100',
     dashboardPath: '/bulorlead/dashboard',
-    description: 'Team leadership dashboard'
+    description: 'Dành cho BUL/Lead'
   },
   'Employee': {
     name: 'Employee',
-    displayName: 'Employee',
-    color: 'text-indigo-700',
-    bgColor: 'bg-indigo-100',
-    hoverColor: 'hover:bg-indigo-200',
+    displayName: 'Cá nhân',
+    color: 'text-brand-gray',
+    bgColor: 'bg-gray-50',
+    hoverColor: 'hover:bg-gray-100',
     dashboardPath: '/employee/dashboard',
-    description: 'Personal workspace'
+    description: 'Quản lý thông tin cá nhân'
   }
 };
 
@@ -85,7 +87,7 @@ export default function RoleSwitcherNavbar() {
   const handleRoleSwitch = (role: typeof availableRoles[0]) => {
     switchRole(role);
     setIsDropdownOpen(false);
-    
+
     // Navigate to the appropriate dashboard for the selected role
     const roleConfig = ROLE_CONFIGS[role.name];
     if (roleConfig) {
@@ -105,8 +107,15 @@ export default function RoleSwitcherNavbar() {
         <div className="flex justify-between items-center h-16">
           {/* Left side - Logo and current role */}
           <div className="flex items-center space-x-4">
-            <Link href="/dashboard" className="text-xl font-bold text-gray-900">
-              VDT CV System
+            <Link href="/dashboard" className="flex items-center space-x-3">
+              <Image
+                src="/logo.png"
+                alt="VDT CV System Logo"
+                width={40}
+                height={40}
+                className="object-contain"
+              />
+              <span className="text-xl font-bold text-brand-red">CV - Management</span>
             </Link>
           </div>
 
@@ -120,28 +129,24 @@ export default function RoleSwitcherNavbar() {
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
                 </svg>
-                <span>Dashboard List</span>
+                <span>Danh sách Dashboard</span>
               </button>
 
               {isDropdownOpen && (
                 <div className="absolute top-full left-0 mt-2 w-80 bg-white rounded-md shadow-lg border border-gray-200 z-50">
                   <div className="p-2">
                     <div className="text-xs font-medium text-gray-500 uppercase tracking-wide px-3 py-2">
-                      Available Dashboard
+                      Dashboard khả dụng
                     </div>
                     {availableRoles.map((role) => {
                       const roleConfig = ROLE_CONFIGS[role.name];
                       const isActive = currentRole.id === role.id;
-                      
+
                       return (
                         <button
                           key={role.id}
                           onClick={() => handleRoleSwitch(role)}
-                          className={`w-full text-left px-3 py-2 rounded-md transition-colors ${
-                            isActive 
-                              ? `${roleConfig?.bgColor} ${roleConfig?.color}` 
-                              : `hover:bg-gray-100 text-gray-700`
-                          }`}
+                          className={`w-full text-left px-3 py-2 rounded-md hover:bg-gray-100 transition-colors `}
                         >
                           <div className="flex items-center justify-between">
                             <div>
@@ -152,11 +157,6 @@ export default function RoleSwitcherNavbar() {
                                 {roleConfig?.description || 'Role description'}
                               </div>
                             </div>
-                            {isActive && (
-                              <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                              </svg>
-                            )}
                           </div>
                         </button>
                       );
@@ -169,14 +169,8 @@ export default function RoleSwitcherNavbar() {
 
           {/* Right side - Navigation and user actions */}
           <div className="flex items-center space-x-4">
-
-            {/* Profile Link */}
-            <Link
-              href="/employee/account"
-              className="text-sm font-medium text-gray-600 hover:text-gray-900"
-            >
-              Profile
-            </Link>
+            {/* Notification Icon */}
+            <NotificationIcon />
 
             {/* User Info */}
             <div className="flex items-center space-x-2">
@@ -187,7 +181,7 @@ export default function RoleSwitcherNavbar() {
                 onClick={() => logout()}
                 className="text-sm font-medium text-red-600 hover:text-red-700"
               >
-                Logout
+                Đăng xuất
               </button>
             </div>
           </div>

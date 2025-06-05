@@ -305,114 +305,19 @@ func GetUsersInProject(c *gin.Context) {
 	})
 }
 
-// GetUsers returns a list of all users based on the caller's role
+// GetUsers returns a list of all users
 func GetUsers(c *gin.Context) {
-	// Debug: Print user information from context
-	userID, userIDExists := c.Get("userID")
-	roles, rolesExist := c.Get("roles")
+	fmt.Println("GetUsers: Fetching all users from database")
 
-	fmt.Printf("=== GetUsers Debug Info ===\n")
-	if userIDExists {
-		fmt.Printf("User ID: %v\n", userID)
-	} else {
-		fmt.Println("User ID: NOT FOUND in context")
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"status":  "error",
-			"message": "Unauthorized - user ID not found",
-		})
-		return
-	}
-
-	if !rolesExist {
-		fmt.Println("Roles: NOT FOUND in context")
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"status":  "error",
-			"message": "Unauthorized - user roles not found",
-		})
-		return
-	}
-
-	roleSlice, ok := roles.([]string)
-	if !ok {
-		fmt.Printf("Roles exist but wrong type: %T = %v\n", roles, roles)
+	// Fetch all users from the database
+	allUsers, err := getAllUsers(c)
+	if err != nil {
+		fmt.Printf("GetUsers error: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
-			"message": "Server error - invalid role format",
+			"message": "Error fetching users",
 		})
 		return
-	}
-
-	fmt.Printf("User Roles: %v\n", roleSlice)
-	fmt.Printf("Number of roles: %d\n", len(roleSlice))
-	for i, role := range roleSlice {
-		fmt.Printf("  Role %d: %s\n", i+1, role)
-	}
-	fmt.Printf("===========================\n")
-
-	// Determine which users to fetch based on role
-	// Users can have multiple roles (PM and BUL/Lead), so we combine results
-	var allUsers []models.User
-	var err error
-	userMap := make(map[string]models.User) // To avoid duplicates
-
-	// Admin role gets all users (highest privilege)
-	if contains(roleSlice, "Admin") {
-		fmt.Println("GetUsers: Admin role detected - fetching all users")
-		allUsers, err = getAllUsers(c)
-		if err != nil {
-			fmt.Printf("GetUsers error (Admin): %v\n", err)
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"status":  "error",
-				"message": "Error fetching users",
-			})
-			return
-		}
-	} else {
-		// For non-Admin users, combine results from PM and BUL/Lead roles
-
-		// PM role - get users from projects
-		if contains(roleSlice, "PM") {
-			fmt.Println("GetUsers: PM role detected - fetching users from related projects")
-			pmUsers, err := getUsersFromPMProjects(c, userID.(string))
-			if err != nil {
-				fmt.Printf("GetUsers error (PM): %v\n", err)
-				c.JSON(http.StatusInternalServerError, gin.H{
-					"status":  "error",
-					"message": "Error fetching PM project users",
-				})
-				return
-			}
-			// Add PM users to map
-			for _, user := range pmUsers {
-				userMap[user.ID] = user
-			}
-			fmt.Printf("GetUsers: Added %d users from PM projects\n", len(pmUsers))
-		}
-
-		// BUL/Lead role - get users from same department
-		if contains(roleSlice, "BUL/Lead") {
-			fmt.Println("GetUsers: BUL/Lead role detected - fetching users from same department")
-			bulUsers, err := getUsersFromSameDepartment(c, userID.(string))
-			if err != nil {
-				fmt.Printf("GetUsers error (BUL/Lead): %v\n", err)
-				c.JSON(http.StatusInternalServerError, gin.H{
-					"status":  "error",
-					"message": "Error fetching department users",
-				})
-				return
-			}
-			// Add BUL users to map (will overwrite if duplicate, which is fine)
-			for _, user := range bulUsers {
-				userMap[user.ID] = user
-			}
-			fmt.Printf("GetUsers: Added %d users from BUL department\n", len(bulUsers))
-		}
-
-		// Convert map to slice
-		allUsers = make([]models.User, 0, len(userMap))
-		for _, user := range userMap {
-			allUsers = append(allUsers, user)
-		}
 	}
 
 	fmt.Printf("GetUsers: Returning %d users\n", len(allUsers))

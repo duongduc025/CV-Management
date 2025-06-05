@@ -33,6 +33,28 @@ type UserRegister struct {
 	RoleNames    []string `json:"role_names"`
 }
 
+// BulkUserRegister represents bulk registration data
+type BulkUserRegister struct {
+	Users []UserRegister `json:"users" binding:"required,min=1,dive"`
+}
+
+// BulkRegistrationResult represents the result of bulk registration
+type BulkRegistrationResult struct {
+	TotalUsers      int                      `json:"total_users"`
+	SuccessfulUsers int                      `json:"successful_users"`
+	FailedUsers     int                      `json:"failed_users"`
+	Results         []UserRegistrationResult `json:"results"`
+}
+
+// UserRegistrationResult represents the result of a single user registration
+type UserRegistrationResult struct {
+	EmployeeCode string `json:"employee_code"`
+	Email        string `json:"email"`
+	FullName     string `json:"full_name"`
+	Success      bool   `json:"success"`
+	Error        string `json:"error,omitempty"`
+}
+
 // UserResponse represents the user data returned after authentication
 type UserResponse struct {
 	ID           string     `json:"id"`

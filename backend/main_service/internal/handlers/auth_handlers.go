@@ -11,11 +11,11 @@ import (
 	"github.com/vdt/cv-management/internal/utils"
 )
 
-// Register creates a new user account
+// Register creates new user accounts from a list of form data objects (mass registration)
 func Register(c *gin.Context) {
-	var registerData models.UserRegister
+	var bulkRegisterData models.BulkUserRegister
 
-	if err := c.ShouldBindJSON(&registerData); err != nil {
+	if err := c.ShouldBindJSON(&bulkRegisterData); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  "error",
 			"message": "Invalid registration data",
@@ -23,44 +23,7 @@ func Register(c *gin.Context) {
 		return
 	}
 
-	// Automatically add Employee role if not present
-	if !slices.Contains(registerData.RoleNames, "Employee") {
-		registerData.RoleNames = append(registerData.RoleNames, "Employee")
-	}
-
-	// Check if email already exists
-	var exists bool
-	err := database.DB.QueryRow(c,
-		"SELECT EXISTS(SELECT 1 FROM users WHERE email = $1)",
-		registerData.Email).Scan(&exists)
-
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"status":  "error",
-			"message": "Error checking email availability",
-		})
-		return
-	}
-
-	if exists {
-		c.JSON(http.StatusConflict, gin.H{
-			"status":  "error",
-			"message": "Email already registered",
-		})
-		return
-	}
-
-	// Hash password
-	hashedPassword, err := utils.HashPassword(registerData.Password)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"status":  "error",
-			"message": "Error processing password",
-		})
-		return
-	}
-
-	// Start a transaction
+	// Start a transaction for all registrations
 	tx, err := database.DB.Begin(c)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -71,91 +34,160 @@ func Register(c *gin.Context) {
 	}
 	defer tx.Rollback(c)
 
-	// Use the department ID directly
-	departmentID := registerData.DepartmentID
+	var results []models.UserRegistrationResult
+	successCount := 0
+	totalCount := len(bulkRegisterData.Users)
 
-	// Insert new user
-	var userID string
-	err = tx.QueryRow(c,
-		`INSERT INTO users (id, employee_code, full_name, email, password, department_id, created_at)
-		VALUES (uuid_generate_v4(), $1, $2, $3, $4, $5, NOW())
-		RETURNING id`,
-		registerData.EmployeeCode, registerData.FullName, registerData.Email, hashedPassword, departmentID).Scan(&userID)
-
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"status":  "error",
-			"message": "Error creating user account",
-		})
-		return
-	}
-
-	// Assign the selected roles
-	for _, roleName := range registerData.RoleNames {
-		var roleID string
-		err = tx.QueryRow(c, "SELECT id FROM roles WHERE name = $1", roleName).Scan(&roleID)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"status":  "error",
-				"message": "Error getting role: " + roleName,
-			})
-			return
+	// Process each user registration
+	for _, registerData := range bulkRegisterData.Users {
+		result := models.UserRegistrationResult{
+			EmployeeCode: registerData.EmployeeCode,
+			Email:        registerData.Email,
+			FullName:     registerData.FullName,
+			Success:      false,
 		}
 
+		// Automatically add Employee role if not present
+		if !slices.Contains(registerData.RoleNames, "Employee") {
+			registerData.RoleNames = append(registerData.RoleNames, "Employee")
+		}
+
+		// Check if email already exists
+		var exists bool
+		err := tx.QueryRow(c,
+			"SELECT EXISTS(SELECT 1 FROM users WHERE email = $1)",
+			registerData.Email).Scan(&exists)
+
+		if err != nil {
+			result.Error = "Error checking email availability"
+			results = append(results, result)
+			continue
+		}
+
+		if exists {
+			result.Error = "Email already registered"
+			results = append(results, result)
+			continue
+		}
+
+		// Hash password
+		hashedPassword, err := utils.HashPassword(registerData.Password)
+		if err != nil {
+			result.Error = "Error processing password"
+			results = append(results, result)
+			continue
+		}
+
+		// Insert new user
+		var userID string
+		err = tx.QueryRow(c,
+			`INSERT INTO users (id, employee_code, full_name, email, password, department_id, created_at)
+			VALUES (uuid_generate_v4(), $1, $2, $3, $4, $5, NOW())
+			RETURNING id`,
+			registerData.EmployeeCode, registerData.FullName, registerData.Email, hashedPassword, registerData.DepartmentID).Scan(&userID)
+
+		if err != nil {
+			result.Error = "Error creating user account"
+			results = append(results, result)
+			continue
+		}
+
+		// Assign the selected roles
+		roleAssignmentFailed := false
+		for _, roleName := range registerData.RoleNames {
+			var roleID string
+			err = tx.QueryRow(c, "SELECT id FROM roles WHERE name = $1", roleName).Scan(&roleID)
+			if err != nil {
+				result.Error = "Error getting role: " + roleName
+				roleAssignmentFailed = true
+				break
+			}
+
+			_, err = tx.Exec(c,
+				"INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)",
+				userID, roleID)
+
+			if err != nil {
+				result.Error = "Error assigning role: " + roleName
+				roleAssignmentFailed = true
+				break
+			}
+		}
+
+		if roleAssignmentFailed {
+			results = append(results, result)
+			continue
+		}
+
+		// Create an empty CV for the new user
+		var cvID string
+		err = tx.QueryRow(c,
+			"INSERT INTO cv (id, user_id, status) VALUES (uuid_generate_v4(), $1, 'Chưa cập nhật') RETURNING id",
+			userID).Scan(&cvID)
+
+		if err != nil {
+			result.Error = "Error creating user CV"
+			results = append(results, result)
+			continue
+		}
+
+		// Create empty CV details for the new CV
 		_, err = tx.Exec(c,
-			"INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)",
-			userID, roleID)
+			`INSERT INTO cv_details (id, cv_id, ho_ten, chuc_danh, anh_chan_dung, tom_tat, thong_tin_ca_nhan, thong_tin_dao_tao, thong_tin_khoa_hoc, thong_tin_ki_nang, cv_path)
+			VALUES (uuid_generate_v4(), $1, '', '', '', '', '', '', '', '', '')`,
+			cvID)
 
 		if err != nil {
+			result.Error = "Error creating user CV details"
+			results = append(results, result)
+			continue
+		}
+
+		// If we reach here, the user was successfully created
+		result.Success = true
+		successCount++
+		results = append(results, result)
+	}
+
+	// Commit transaction only if at least one user was successfully created
+	if successCount > 0 {
+		if err = tx.Commit(c); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"status":  "error",
-				"message": "Error assigning role: " + roleName,
+				"message": "Error committing transaction",
 			})
 			return
 		}
 	}
 
-	// Create an empty CV for the new user
-	var cvID string
-	err = tx.QueryRow(c,
-		"INSERT INTO cv (id, user_id, status) VALUES (uuid_generate_v4(), $1, 'Chưa cập nhật') RETURNING id",
-		userID).Scan(&cvID)
-
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"status":  "error",
-			"message": "Error creating user CV",
-		})
-		return
+	// Prepare response
+	bulkResult := models.BulkRegistrationResult{
+		TotalUsers:      totalCount,
+		SuccessfulUsers: successCount,
+		FailedUsers:     totalCount - successCount,
+		Results:         results,
 	}
 
-	// Create empty CV details for the new CV
-	_, err = tx.Exec(c,
-		`INSERT INTO cv_details (id, cv_id, ho_ten, chuc_danh, anh_chan_dung, tom_tat, thong_tin_ca_nhan, thong_tin_dao_tao, thong_tin_khoa_hoc, thong_tin_ki_nang, cv_path)
-		VALUES (uuid_generate_v4(), $1, '', '', '', '', '', '', '', '', '')`,
-		cvID)
-
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"status":  "error",
-			"message": "Error creating user CV details",
+	// Determine response status based on results
+	if successCount == totalCount {
+		c.JSON(http.StatusCreated, gin.H{
+			"status":  "success",
+			"message": "All users registered successfully",
+			"data":    bulkResult,
 		})
-		return
-	}
-
-	// Commit transaction
-	if err = tx.Commit(c); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"status":  "error",
-			"message": "Error creating user account",
+	} else if successCount > 0 {
+		c.JSON(http.StatusPartialContent, gin.H{
+			"status":  "partial_success",
+			"message": "Some users registered successfully",
+			"data":    bulkResult,
 		})
-		return
+	} else {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"message": "No users were registered successfully",
+			"data":    bulkResult,
+		})
 	}
-
-	c.JSON(http.StatusCreated, gin.H{
-		"status":  "success",
-		"message": "User registered successfully",
-	})
 }
 
 // Login authenticates a user and returns JWT tokens

@@ -24,6 +24,9 @@ func main() {
 	}
 	defer database.CloseDB()
 
+	// Initialize SSE manager
+	handlers.InitSSEManager()
+
 	// Set Gin mode based on environment
 	if os.Getenv("ENV") == "production" {
 		gin.SetMode(gin.ReleaseMode)
@@ -60,7 +63,7 @@ func main() {
 		// Auth routes (public)
 		auth := api.Group("/auth")
 		{
-			auth.POST("/register", handlers.Register)
+			auth.POST("/register", handlers.Register) // Mass registration (accepts list of users)
 			auth.POST("/login", handlers.Login)
 			auth.POST("/refresh", handlers.RefreshToken)
 			auth.POST("/logout", handlers.Logout)
@@ -71,6 +74,9 @@ func main() {
 
 		// Roles routes - needs to be public for registration
 		api.GET("/roles", handlers.GetRoles)
+
+		// SSE connection endpoint - handles its own authentication (must be before protected routes)
+		api.GET("/sse/connect", handlers.SSEConnect)
 
 		// Protected routes
 		// Apply authentication middleware
@@ -83,7 +89,7 @@ func main() {
 		users := api.Group("/users")
 		{
 			// Admin can access all user operations
-			users.GET("", middleware.AdminOrPMOrBUL(), handlers.GetUsers)
+			users.GET("", middleware.AdminOnly(), handlers.GetUsers)
 			users.GET("/:id", middleware.AdminOrPMOrBUL(), handlers.GetUserByID)
 			users.POST("", middleware.AdminOnly(), handlers.CreateUser)
 			users.PUT("/:id", middleware.AdminOnly(), handlers.UpdateUser)
@@ -108,7 +114,7 @@ func main() {
 			cvs.POST("", handlers.CreateOrUpdateCV)
 
 			// BUL and PM can view any CV by user ID
-			cvs.GET("/user/:user_id", middleware.PMOrBUL(), handlers.GetCVByUserID)
+			cvs.GET("/user/:user_id", middleware.AdminOrPMOrBUL(), handlers.GetCVByUserID)
 		}
 
 		// CV Request routes with role-based access
@@ -118,6 +124,9 @@ func main() {
 			requests.GET("", handlers.GetCVRequests)
 			requests.POST("", handlers.CreateCVRequest)
 			requests.PUT("/:id/status", middleware.AdminOrPMOrBUL(), handlers.UpdateCVRequestStatus)
+			// Mark requests as read
+			requests.PUT("/:id/read", handlers.MarkCVRequestAsRead)
+			requests.PUT("/mark-all-read", handlers.MarkAllCVRequestsAsRead)
 		}
 
 		// Project routes with role-based access
@@ -125,6 +134,7 @@ func main() {
 		{
 			projects.GET("", middleware.AdminOrPMOrBUL(), handlers.GetProjects)
 			projects.GET("/:id", middleware.AdminOrPMOrBUL(), handlers.GetProjectByID)
+			projects.GET("/members", middleware.PMOnly(), handlers.GetAllMembersOfAllProjects)
 
 			projects.POST("", middleware.RoleMiddleware("Admin", "PM"), handlers.CreateProject)
 			projects.PUT("/:id", middleware.RoleMiddleware("Admin", "PM"), handlers.UpdateProject)
@@ -147,6 +157,21 @@ func main() {
 		{
 			// Parse CV from file path
 			ai.POST("/parse-cv", handlers.ParseCVFromFile)
+		}
+
+		// Employee routes - accessible to all authenticated users
+		employee := api.Group("/employee")
+		{
+			employee.GET("/notifications", handlers.GetCVRequests)
+		}
+
+		// General info routes - accessible to all authenticated users
+		generalInfo := api.Group("/general-info")
+		{
+			// Get department general information
+			generalInfo.GET("/department", handlers.GetGeneralInfoOfDepartment)
+			// Get project management general information
+			generalInfo.GET("/project-management", handlers.GetGeneralInfoOfProjectManagement)
 		}
 	}
 
