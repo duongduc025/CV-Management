@@ -1,0 +1,89 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: cv-management-db
+    environment:
+      POSTGRES_DB: cv_management
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/main_service/internal/database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ./backend/main_service/scripts/insert_mock_data.sql:/docker-entrypoint-initdb.d/02-seed.sql
+    networks:
+      - cv-management-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend Main Service (Go)
+  backend:
+    build: ./backend/main_service
+    container_name: cv-management-backend
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=cv_management
+      - SERVER_PORT=8080
+      - JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
+      - AI_SERVICE_URL=http://ai-service:8000
+      - ENV=production
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - cv-management-network
+    volumes:
+      - ./uploads:/app/uploads
+    restart: unless-stopped
+
+  # AI Service (Python FastAPI)
+  ai-service:
+    build: ./backend/ai_service
+    container_name: cv-management-ai
+    environment:
+      - AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY}
+      - AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT}
+      - AZURE_OPENAI_DEPLOYMENT_NAME=${AZURE_OPENAI_DEPLOYMENT_NAME}
+      - AZURE_OPENAI_API_VERSION=2024-02-15-preview
+    ports:
+      - "8000:8000"
+    networks:
+      - cv-management-network
+    volumes:
+      - ./uploads:/app/uploads
+    restart: unless-stopped
+
+  # Frontend (Next.js)
+  frontend:
+    build: ./frontend
+    container_name: cv-management-frontend
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8080/api
+      - NODE_ENV=production
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - cv-management-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  uploads:
+
+networks:
+  cv-management-network:
+    driver: bridge
