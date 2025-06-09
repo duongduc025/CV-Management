@@ -37,15 +37,42 @@ CREATE TABLE cv (
 CREATE TABLE cv_details (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     cv_id UUID REFERENCES cv(id) ON DELETE CASCADE,
-    ho_ten TEXT NOT NULL,
-    chuc_danh TEXT NOT NULL,
-    anh_chan_dung TEXT,
-    tom_tat TEXT NOT NULL,
-    thong_tin_ca_nhan TEXT NOT NULL,
-    thong_tin_dao_tao TEXT NOT NULL,
-    thong_tin_khoa_hoc TEXT,
-    thong_tin_ki_nang TEXT NOT NULL,
-    cv_path TEXT
+    full_name TEXT NOT NULL,
+    job_title TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    birthday DATE,
+    gender TEXT,
+    email TEXT,
+    phone TEXT,
+    address TEXT,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Bảng cv_education
+CREATE TABLE cv_education (
+    id UUID PRIMARY KEY,
+    cv_id UUID REFERENCES cv_details(id) ON DELETE CASCADE,
+    organization TEXT NOT NULL,
+    degree TEXT,
+    major TEXT,
+    graduation_year INT
+);
+
+-- Bảng cv_courses
+CREATE TABLE cv_courses (
+    id UUID PRIMARY KEY,
+    cv_id UUID REFERENCES cv_details(id) ON DELETE CASCADE,
+    course_name TEXT NOT NULL,
+    organization TEXT,
+    finish_date DATE
+);
+
+-- Bảng cv_skills
+CREATE TABLE cv_skills (
+    id UUID PRIMARY KEY,
+    cv_id UUID REFERENCES cv_details(id) ON DELETE CASCADE,
+    skill_name TEXT NOT NULL,
+    description TEXT
 );
 
 -- Bảng cv_update_requests
@@ -90,15 +117,3 @@ CREATE TABLE project_members (
     left_at DATE,
     PRIMARY KEY (project_id, user_id)
 );
-
--- Insert sample data
-INSERT INTO departments (id, name) VALUES
-    (uuid_generate_v4(), 'Phòng kỹ thuật'),
-    (uuid_generate_v4(), 'Phòng nhân sự'),
-    (uuid_generate_v4(), 'Phòng kinh doanh');
-
--- Insert sample roles
-INSERT INTO roles (id, name) VALUES
-    (uuid_generate_v4(), 'Admin'),
-    (uuid_generate_v4(), 'Manager'),
-    (uuid_generate_v4(), 'Employee');

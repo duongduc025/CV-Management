@@ -18,3 +18,10 @@ type ProjectCreateRequest struct {
 	StartDate string `json:"start_date,omitempty"`
 	EndDate   string `json:"end_date,omitempty"`
 }
+
+type AdminProjectCreateRequest struct {
+	Name      string `json:"name" binding:"required"`
+	StartDate string `json:"start_date,omitempty"`
+	EndDate   string `json:"end_date,omitempty"`
+	PMUserID  string `json:"pm_user_id" binding:"required"`
+}

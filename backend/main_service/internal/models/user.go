@@ -83,3 +83,14 @@ type TokenResponse struct {
 	Token        string `json:"token"`
 	RefreshToken string `json:"refresh_token,omitempty"`
 }
+
+// PaginatedUsersResponse represents the paginated response for users
+type PaginatedUsersResponse struct {
+	Users       []User `json:"users"`
+	CurrentPage int    `json:"current_page"`
+	TotalPages  int    `json:"total_pages"`
+	TotalUsers  int    `json:"total_users"`
+	PerPage     int    `json:"per_page"`
+	HasNext     bool   `json:"has_next"`
+	HasPrev     bool   `json:"has_prev"`
+}

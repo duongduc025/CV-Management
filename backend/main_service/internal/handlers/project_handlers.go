@@ -112,8 +112,8 @@ func GetProjects(c *gin.Context) {
 			return
 		}
 	} else if slices.Contains(roleSlice, "PM") {
-		// PM can see projects they are members of with member counts
-		fmt.Printf("GetProjects: PM access - fetching projects for PM %s with member counts\n", userIDStr)
+		// PM can see projects where they have PM role with member counts
+		fmt.Printf("GetProjects: PM access - fetching projects where user %s has PM role with member counts\n", userIDStr)
 		rows, err := database.DB.Query(c, `
 			SELECT DISTINCT p.id, p.name, p.start_date, p.end_date,
 				   COALESCE(member_count.count, 0) as member_count
@@ -126,6 +126,7 @@ func GetProjects(c *gin.Context) {
 				GROUP BY project_id
 			) member_count ON p.id = member_count.project_id
 			WHERE pm.user_id = $1
+			  AND pm.role_in_project = 'PM'
 			  AND (pm.left_at IS NULL OR pm.left_at > CURRENT_DATE)
 			ORDER BY p.name`, userIDStr)
 		if err != nil {
@@ -373,6 +374,191 @@ func CreateProject(c *gin.Context) {
 	})
 }
 
+// CreateProjectWithPM creates a new project and assigns a PM (Admin only)
+func CreateProjectWithPM(c *gin.Context) {
+	fmt.Println("CreateProjectWithPM: Starting project creation with PM assignment")
+
+	var projectData models.AdminProjectCreateRequest
+	if err := c.ShouldBindJSON(&projectData); err != nil {
+		fmt.Printf("CreateProjectWithPM bind error: %v\n", err)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"message": "Invalid project data",
+		})
+		return
+	}
+
+	fmt.Printf("CreateProjectWithPM: Project data: %+v\n", projectData)
+
+	// Validate required fields
+	if projectData.Name == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"message": "Project name is required",
+		})
+		return
+	}
+
+	if projectData.PMUserID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"message": "PM user ID is required",
+		})
+		return
+	}
+
+	// Verify that the PM user exists and has PM role
+	var pmExists bool
+	var pmHasPMRole bool
+
+	// Check if user exists
+	err := database.DB.QueryRow(c, "SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)", projectData.PMUserID).Scan(&pmExists)
+	if err != nil {
+		fmt.Printf("CreateProjectWithPM user check error: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Error validating PM user",
+		})
+		return
+	}
+
+	if !pmExists {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"message": "Selected PM user does not exist",
+		})
+		return
+	}
+
+	// Check if user has PM role
+	err = database.DB.QueryRow(c, `
+		SELECT EXISTS(
+			SELECT 1 FROM user_roles ur
+			JOIN roles r ON ur.role_id = r.id
+			WHERE ur.user_id = $1 AND r.name = 'PM'
+		)`, projectData.PMUserID).Scan(&pmHasPMRole)
+	if err != nil {
+		fmt.Printf("CreateProjectWithPM PM role check error: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Error validating PM role",
+		})
+		return
+	}
+
+	if !pmHasPMRole {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"message": "Selected user does not have PM role",
+		})
+		return
+	}
+
+	// Start transaction
+	tx, err := database.DB.Begin(c)
+	if err != nil {
+		fmt.Printf("CreateProjectWithPM transaction error: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Error starting transaction",
+		})
+		return
+	}
+	defer tx.Rollback(c)
+
+	// Parse dates if provided
+	var startDate, endDate interface{}
+	if projectData.StartDate != "" {
+		parsedStartDate, err := time.Parse("2006-01-02", projectData.StartDate)
+		if err != nil {
+			fmt.Printf("CreateProjectWithPM start date parse error: %v\n", err)
+			c.JSON(http.StatusBadRequest, gin.H{
+				"status":  "error",
+				"message": "Invalid start date format. Use YYYY-MM-DD",
+			})
+			return
+		}
+		startDate = parsedStartDate
+	}
+
+	if projectData.EndDate != "" {
+		parsedEndDate, err := time.Parse("2006-01-02", projectData.EndDate)
+		if err != nil {
+			fmt.Printf("CreateProjectWithPM end date parse error: %v\n", err)
+			c.JSON(http.StatusBadRequest, gin.H{
+				"status":  "error",
+				"message": "Invalid end date format. Use YYYY-MM-DD",
+			})
+			return
+		}
+		endDate = parsedEndDate
+	}
+
+	// Create project
+	var projectID string
+	query := `INSERT INTO projects (id, name, start_date, end_date) VALUES (uuid_generate_v4(), $1, $2, $3) RETURNING id`
+	err = tx.QueryRow(c, query, projectData.Name, startDate, endDate).Scan(&projectID)
+	if err != nil {
+		fmt.Printf("CreateProjectWithPM project insert error: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Error creating project",
+		})
+		return
+	}
+
+	fmt.Printf("CreateProjectWithPM: Successfully created project with ID: %s\n", projectID)
+
+	// Add the selected PM as a project member with PM role
+	memberQuery := `INSERT INTO project_members (project_id, user_id, role_in_project, joined_at) VALUES ($1, $2, $3, CURRENT_DATE)`
+	_, err = tx.Exec(c, memberQuery, projectID, projectData.PMUserID, "PM")
+	if err != nil {
+		fmt.Printf("CreateProjectWithPM member insert error: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Error adding PM to project",
+		})
+		return
+	}
+
+	fmt.Printf("CreateProjectWithPM: Successfully added PM %s to project %s\n", projectData.PMUserID, projectID)
+
+	// Commit transaction
+	if err = tx.Commit(c); err != nil {
+		fmt.Printf("CreateProjectWithPM commit error: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Error committing transaction",
+		})
+		return
+	}
+
+	// Create response project object
+	project := models.Project{
+		ID:   projectID,
+		Name: projectData.Name,
+	}
+
+	if startDate != nil {
+		if sd, ok := startDate.(time.Time); ok {
+			project.StartDate = sd
+		}
+	}
+
+	if endDate != nil {
+		if ed, ok := endDate.(time.Time); ok {
+			project.EndDate = ed
+		}
+	}
+
+	fmt.Printf("CreateProjectWithPM: Successfully created project %s with PM %s\n", project.Name, projectData.PMUserID)
+
+	c.JSON(http.StatusCreated, gin.H{
+		"status": "success",
+		"data":   project,
+	})
+}
+
 // UpdateProject updates an existing project
 func UpdateProject(c *gin.Context) {
 	id := c.Param("id")
@@ -591,8 +777,8 @@ func DeleteProject(c *gin.Context) {
 	}
 	defer tx.Rollback(c) // Will be ignored if transaction is committed
 
-	// First, remove all project members (set left_at to current date)
-	_, err = tx.Exec(c, "UPDATE project_members SET left_at = CURRENT_DATE WHERE project_id = $1 AND (left_at IS NULL OR left_at > CURRENT_DATE)", id)
+	// First, remove all project members (hard delete to avoid foreign key constraint)
+	_, err = tx.Exec(c, "DELETE FROM project_members WHERE project_id = $1", id)
 	if err != nil {
 		fmt.Printf("DeleteProject member removal error: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -937,8 +1123,8 @@ func GetAllMembersOfAllProjects(c *gin.Context) {
 		return
 	}
 
-	// PM can see all members of projects they are involved in, grouped by user
-	fmt.Printf("GetAllMembersOfAllProjects: PM access - fetching grouped project members for PM %s\n", requestUserIDStr)
+	// PM can see all members of projects where they have PM role, grouped by user
+	fmt.Printf("GetAllMembersOfAllProjects: PM access - fetching grouped project members for projects where user %s has PM role\n", requestUserIDStr)
 
 	query := `
 		SELECT u.id, u.employee_code, u.full_name, u.email, u.department_id,
@@ -950,6 +1136,7 @@ func GetAllMembersOfAllProjects(c *gin.Context) {
 		INNER JOIN projects p ON pm.project_id = p.id
 		INNER JOIN project_members pm_check ON p.id = pm_check.project_id
 		WHERE pm_check.user_id = $1
+		  AND pm_check.role_in_project = 'PM'
 		  AND (pm.left_at IS NULL OR pm.left_at > CURRENT_DATE)
 		  AND (pm_check.left_at IS NULL OR pm_check.left_at > CURRENT_DATE)
 		GROUP BY u.id, u.employee_code, u.full_name, u.email, u.department_id, d.name

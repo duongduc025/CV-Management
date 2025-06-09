@@ -19,7 +19,7 @@ export default function BULMainContent({ activeTab, user }: BULMainContentProps)
       case 'members':
         return <BULMembersTab user={user} />;
       case 'cv-requests':
-        return <BULCVRequestsTab user={user} />;
+        return <BULCVRequestsTab />;
       default:
         return <BULHomeTab user={user} />;
     }

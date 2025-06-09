@@ -1,69 +1,66 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { User } from '@/services/auth';
+import { useRouter, usePathname } from 'next/navigation';
+import AdminSidebar from './AdminSidebar';
+import AdminMainContent from './AdminMainContent';
 
-interface AdminDashboardLayoutProps {
-  user: User;
-}
-
-export default function AdminDashboardLayout({ user }: AdminDashboardLayoutProps) {
+export default function AdminDashboardLayout() {
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
+  const router = useRouter();
+  const pathname = usePathname();
 
+  // Handle hash changes and initialize from URL
+  useEffect(() => {
+    // Get tab from hash or default to dashboard
+    const getTabFromHash = () => {
+      if (typeof window !== 'undefined') {
+        const hash = window.location.hash.replace('#', '');
+        return hash || 'dashboard';
+      }
+      return 'dashboard';
+    };
+
+    const handleHashChange = () => {
+      const tab = getTabFromHash();
+      setActiveTab(tab);
+    };
+
+    // Set initial tab based on hash
+    handleHashChange();
+
+    // Listen for hash changes
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  // Handle tab change and update hash
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    if (typeof window !== 'undefined') {
+      window.location.hash = tab;
+    }
+  };
+
+
+  // Handle responsive behavior
   useEffect(() => {
     const checkScreenSize = () => {
-      setIsMobile(window.innerWidth < 1024);
-      if (window.innerWidth >= 1024) {
+      const mobile = window.innerWidth < 1024;
+      setIsMobile(mobile);
+      if (mobile) {
         setSidebarOpen(false);
+      } else {
+        setSidebarOpen(true);
       }
     };
 
     checkScreenSize();
     window.addEventListener('resize', checkScreenSize);
-
-    return () => {
-      window.removeEventListener('resize', checkScreenSize);
-    };
+    return () => window.removeEventListener('resize', checkScreenSize);
   }, []);
-
-  // Handle hash-based routing
-  useEffect(() => {
-    const handleHashChange = () => {
-      const hash = window.location.hash.slice(1); // Remove the # symbol
-      if (hash) {
-        setActiveTab(hash);
-      } else {
-        setActiveTab('dashboard');
-      }
-    };
-
-    // Set initial tab from hash
-    handleHashChange();
-
-    // Listen for hash changes
-    window.addEventListener('hashchange', handleHashChange);
-
-    return () => {
-      window.removeEventListener('hashchange', handleHashChange);
-    };
-  }, []);
-
-  // Update hash when tab changes
-  const handleTabChange = (tabId: string) => {
-    setActiveTab(tabId);
-    window.location.hash = tabId;
-
-    // Optional: Add to browser history for better UX
-    if (window.history.pushState) {
-      window.history.pushState(null, '', `#${tabId}`);
-    }
-  };
-
-  // Dynamic imports to avoid module resolution issues
-  const AdminSidebar = require('./AdminSidebar').default;
-  const AdminMainContent = require('./AdminMainContent').default;
 
   return (
     <div className="flex h-screen w-full bg-gray-50">
@@ -88,7 +85,7 @@ export default function AdminDashboardLayout({ user }: AdminDashboardLayoutProps
       <div className="flex-1 flex flex-col overflow-hidden w-full">
         {/* Main content area */}
         <main className="flex-1 overflow-hidden w-full">
-          <AdminMainContent activeTab={activeTab} user={user} />
+          <AdminMainContent activeTab={activeTab} />
         </main>
       </div>
     </div>

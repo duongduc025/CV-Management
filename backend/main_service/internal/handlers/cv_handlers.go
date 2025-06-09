@@ -11,6 +11,77 @@ import (
 	"github.com/vdt/cv-management/internal/models"
 )
 
+// Helper function to convert string to *string for nullable fields
+func nullStringPtr(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
+}
+
+// Helper function to load related CV data (education, courses, skills)
+func loadCVRelatedData(c *gin.Context, cvDetailID string) ([]models.CVEducation, []models.CVCourse, []models.CVSkill, error) {
+	var education []models.CVEducation
+	var courses []models.CVCourse
+	var skills []models.CVSkill
+
+	// Load education data
+	eduRows, err := database.DB.Query(c,
+		`SELECT id, cv_id, organization, degree, major, graduation_year
+		FROM cv_education WHERE cv_id = $1 ORDER BY id`, cvDetailID)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to load education data: %w", err)
+	}
+	defer eduRows.Close()
+
+	for eduRows.Next() {
+		var edu models.CVEducation
+		err := eduRows.Scan(&edu.ID, &edu.CVID, &edu.Organization, &edu.Degree, &edu.Major, &edu.GraduationYear)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("failed to scan education row: %w", err)
+		}
+		education = append(education, edu)
+	}
+
+	// Load courses data
+	courseRows, err := database.DB.Query(c,
+		`SELECT id, cv_id, course_name, organization, finish_date
+		FROM cv_courses WHERE cv_id = $1 ORDER BY id`, cvDetailID)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to load courses data: %w", err)
+	}
+	defer courseRows.Close()
+
+	for courseRows.Next() {
+		var course models.CVCourse
+		err := courseRows.Scan(&course.ID, &course.CVID, &course.CourseName, &course.Organization, &course.FinishDate)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("failed to scan course row: %w", err)
+		}
+		courses = append(courses, course)
+	}
+
+	// Load skills data
+	skillRows, err := database.DB.Query(c,
+		`SELECT id, cv_id, skill_name, description
+		FROM cv_skills WHERE cv_id = $1 ORDER BY id`, cvDetailID)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to load skills data: %w", err)
+	}
+	defer skillRows.Close()
+
+	for skillRows.Next() {
+		var skill models.CVSkill
+		err := skillRows.Scan(&skill.ID, &skill.CVID, &skill.SkillName, &skill.Description)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("failed to scan skill row: %w", err)
+		}
+		skills = append(skills, skill)
+	}
+
+	return education, courses, skills, nil
+}
+
 // GetUserCV returns the CV of the authenticated user
 func GetUserCV(c *gin.Context) {
 	userID, exists := c.Get("userID")
@@ -21,27 +92,29 @@ func GetUserCV(c *gin.Context) {
 		})
 		return
 	}
+
 	fmt.Printf("GetUserCV: Fetching CV for user %v\n", userID)
 
 	// Query to get CV with details by user ID
 	var cv models.CV
 	var details models.CVDetail
+	var updaterName, updaterEmployeeCode sql.NullString
 
 	err := database.DB.QueryRow(c,
 		`SELECT cv.id, cv.user_id, cv.last_updated_by, cv.last_updated_at, cv.status,
-		cv_details.id, cv_details.cv_id, cv_details.ho_ten, cv_details.chuc_danh, cv_details.anh_chan_dung,
-		cv_details.tom_tat, cv_details.thong_tin_ca_nhan, cv_details.thong_tin_dao_tao,
-		cv_details.thong_tin_khoa_hoc, cv_details.thong_tin_ki_nang, cv_details.cv_path,
+		cv_details.id, cv_details.cv_id, cv_details.full_name, cv_details.job_title, cv_details.summary,
+		cv_details.birthday, cv_details.gender, cv_details.email, cv_details.phone, cv_details.address,
+		cv_details.cvpath, cv_details.portraitpath, cv_details.created_at,
 		updater.full_name, updater.employee_code
 		FROM cv
 		LEFT JOIN cv_details ON cv.id = cv_details.cv_id
 		LEFT JOIN users updater ON cv.last_updated_by = updater.id
 		WHERE cv.user_id = $1`, userID).Scan(
 		&cv.ID, &cv.UserID, &cv.LastUpdatedBy, &cv.LastUpdatedAt, &cv.Status,
-		&details.ID, &details.CVID, &details.HoTen, &details.ChucDanh, &details.AnhChanDung,
-		&details.TomTat, &details.ThongTinCaNhan, &details.ThongTinDaoTao,
-		&details.ThongTinKhoaHoc, &details.ThongTinKiNang, &details.CVPath,
-		&cv.UpdaterName, &cv.UpdaterEmployeeCode)
+		&details.ID, &details.CVID, &details.FullName, &details.JobTitle, &details.Summary,
+		&details.Birthday, &details.Gender, &details.Email, &details.Phone, &details.Address,
+		&details.CVPath, &details.PortraitPath, &details.CreatedAt,
+		&updaterName, &updaterEmployeeCode)
 
 	if err != nil {
 		fmt.Printf("GetUserCV: Error fetching CV: %v\n", err)
@@ -52,16 +125,30 @@ func GetUserCV(c *gin.Context) {
 		return
 	}
 
-	cv.Details = details
-
 	fmt.Printf("GetUserCV: Successfully fetched CV %s for user %s\n", cv.ID, cv.UserID)
+
+	// Load related data (education, courses, skills)
+	if details.ID != "" {
+		education, courses, skills, err := loadCVRelatedData(c, details.ID)
+		if err != nil {
+			fmt.Printf("GetUserCV: Error loading related data: %v\n", err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status":  "error",
+				"message": "Error loading CV related data",
+			})
+			return
+		}
+		details.Education = education
+		details.Courses = courses
+		details.Skills = skills
+	}
 
 	// Create response with proper null handling
 	response := map[string]interface{}{
 		"id":      cv.ID,
 		"user_id": cv.UserID,
 		"status":  cv.Status,
-		"details": cv.Details,
+		"details": details,
 	}
 
 	// Handle nullable fields
@@ -71,11 +158,11 @@ func GetUserCV(c *gin.Context) {
 	if cv.LastUpdatedAt.Valid {
 		response["last_updated_at"] = cv.LastUpdatedAt.Time
 	}
-	if cv.UpdaterName.Valid {
-		response["updater_name"] = cv.UpdaterName.String
+	if updaterName.Valid {
+		response["updater_name"] = updaterName.String
 	}
-	if cv.UpdaterEmployeeCode.Valid {
-		response["updater_employee_code"] = cv.UpdaterEmployeeCode.String
+	if updaterEmployeeCode.Valid {
+		response["updater_employee_code"] = updaterEmployeeCode.String
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -100,22 +187,23 @@ func GetCVByUserID(c *gin.Context) {
 	// Query to get CV with details by user ID
 	var cv models.CV
 	var details models.CVDetail
+	var updaterName, updaterEmployeeCode sql.NullString
 
 	err := database.DB.QueryRow(c,
 		`SELECT cv.id, cv.user_id, cv.last_updated_by, cv.last_updated_at, cv.status,
-		cv_details.id, cv_details.cv_id, cv_details.ho_ten, cv_details.chuc_danh, cv_details.anh_chan_dung,
-		cv_details.tom_tat, cv_details.thong_tin_ca_nhan, cv_details.thong_tin_dao_tao,
-		cv_details.thong_tin_khoa_hoc, cv_details.thong_tin_ki_nang, cv_details.cv_path,
+		cv_details.id, cv_details.cv_id, cv_details.full_name, cv_details.job_title, cv_details.summary,
+		cv_details.birthday, cv_details.gender, cv_details.email, cv_details.phone, cv_details.address,
+		cv_details.cvpath, cv_details.portraitpath, cv_details.created_at,
 		updater.full_name, updater.employee_code
 		FROM cv
 		LEFT JOIN cv_details ON cv.id = cv_details.cv_id
 		LEFT JOIN users updater ON cv.last_updated_by = updater.id
 		WHERE cv.user_id = $1`, userID).Scan(
 		&cv.ID, &cv.UserID, &cv.LastUpdatedBy, &cv.LastUpdatedAt, &cv.Status,
-		&details.ID, &details.CVID, &details.HoTen, &details.ChucDanh, &details.AnhChanDung,
-		&details.TomTat, &details.ThongTinCaNhan, &details.ThongTinDaoTao,
-		&details.ThongTinKhoaHoc, &details.ThongTinKiNang, &details.CVPath,
-		&cv.UpdaterName, &cv.UpdaterEmployeeCode)
+		&details.ID, &details.CVID, &details.FullName, &details.JobTitle, &details.Summary,
+		&details.Birthday, &details.Gender, &details.Email, &details.Phone, &details.Address,
+		&details.CVPath, &details.PortraitPath, &details.CreatedAt,
+		&updaterName, &updaterEmployeeCode)
 
 	if err != nil {
 		fmt.Printf("GetCVByUserID: Error fetching CV: %v\n", err)
@@ -126,16 +214,30 @@ func GetCVByUserID(c *gin.Context) {
 		return
 	}
 
-	cv.Details = details
-
 	fmt.Printf("GetCVByUserID: Successfully fetched CV %s for user %s with status: %s\n", cv.ID, cv.UserID, cv.Status)
+
+	// Load related data (education, courses, skills)
+	if details.ID != "" {
+		education, courses, skills, err := loadCVRelatedData(c, details.ID)
+		if err != nil {
+			fmt.Printf("GetCVByUserID: Error loading related data: %v\n", err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status":  "error",
+				"message": "Error loading CV related data",
+			})
+			return
+		}
+		details.Education = education
+		details.Courses = courses
+		details.Skills = skills
+	}
 
 	// Create response with proper null handling
 	response := map[string]interface{}{
 		"id":      cv.ID,
 		"user_id": cv.UserID,
 		"status":  cv.Status,
-		"details": cv.Details,
+		"details": details,
 	}
 
 	// Handle nullable fields
@@ -145,357 +247,16 @@ func GetCVByUserID(c *gin.Context) {
 	if cv.LastUpdatedAt.Valid {
 		response["last_updated_at"] = cv.LastUpdatedAt.Time
 	}
-	if cv.UpdaterName.Valid {
-		response["updater_name"] = cv.UpdaterName.String
+	if updaterName.Valid {
+		response["updater_name"] = updaterName.String
 	}
-	if cv.UpdaterEmployeeCode.Valid {
-		response["updater_employee_code"] = cv.UpdaterEmployeeCode.String
+	if updaterEmployeeCode.Valid {
+		response["updater_employee_code"] = updaterEmployeeCode.String
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"status": "success",
 		"data":   response,
-	})
-}
-
-// GetCVRequests returns all CV update requests for a user
-func GetCVRequests(c *gin.Context) {
-	// Get user ID from context (set by auth middleware)
-	userID, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"status":  "error",
-			"message": "Unauthorized - user ID not found",
-		})
-		return
-	}
-
-	fmt.Printf("GetCVRequests: Fetching CV requests for user %v\n", userID)
-
-	// Query to get all CV update requests for a user with requester name
-	rows, err := database.DB.Query(c,
-		`SELECT cur.id, cur.cv_id, cur.requested_by, u.full_name, cur.requested_at, cur.status, cur.is_read, cur.content
-		FROM cv_update_requests cur
-		JOIN users u ON cur.requested_by = u.id
-		JOIN cv ON cur.cv_id = cv.id
-		WHERE cv.user_id = $1
-		ORDER BY cur.requested_at DESC`, userID)
-
-	if err != nil {
-		fmt.Printf("GetCVRequests: Error querying CV requests: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"status":  "error",
-			"message": "Error fetching CV update requests",
-		})
-		return
-	}
-	defer rows.Close()
-
-	// Process the query results
-	var requests []map[string]any
-	for rows.Next() {
-		var id, cvID, requestedBy, requesterName, status string
-		var requestedAt time.Time
-		var isRead bool
-		var content *string
-
-		err := rows.Scan(&id, &cvID, &requestedBy, &requesterName, &requestedAt, &status, &isRead, &content)
-		if err != nil {
-			fmt.Printf("GetCVRequests: Error scanning row: %v\n", err)
-			continue
-		}
-
-		// Create notification message based on content
-		var notificationMessage string
-		if content != nil && *content != "" {
-			notificationMessage = fmt.Sprintf("%s với lời nhắn: \"%s\"", requesterName, *content)
-		} else {
-			notificationMessage = fmt.Sprintf("%s đã yêu cầu bạn cập nhật CV. Vui lòng cập nhật CV của bạn trong thời gian sớm nhất.", requesterName)
-		}
-
-		// Create request object with additional fields for notifications
-		request := map[string]any{
-			"id":             id,
-			"cv_id":          cvID,
-			"requested_by":   requestedBy,
-			"requester_name": requesterName,
-			"requested_at":   requestedAt.Format(time.RFC3339),
-			"status":         status,
-			"is_read":        isRead,
-			"content":        content,
-			// Additional fields for notification compatibility
-			"type":      "cv_update_request",
-			"title":     "Yêu cầu cập nhật CV",
-			"message":   notificationMessage,
-			"timestamp": requestedAt.Unix(),
-			"read":      isRead, // Use actual read status from database
-		}
-
-		requests = append(requests, request)
-	}
-
-	// Check for any errors during iteration
-	if err = rows.Err(); err != nil {
-		fmt.Printf("GetCVRequests: Error during row iteration: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"status":  "error",
-			"message": "Error processing CV update requests",
-		})
-		return
-	}
-
-	fmt.Printf("GetCVRequests: Successfully fetched %d CV requests for user %v\n", len(requests), userID)
-
-	c.JSON(http.StatusOK, gin.H{
-		"status": "success",
-		"data":   requests,
-	})
-}
-
-// CreateCVRequest creates a new CV update request
-func CreateCVRequest(c *gin.Context) {
-	// Get user ID from context (set by auth middleware)
-	requestedByID, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"status":  "error",
-			"message": "Unauthorized - user ID not found",
-		})
-		return
-	}
-
-	var request struct {
-		CVID    string `json:"cv_id" binding:"required"`
-		Content string `json:"content"`
-	}
-
-	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status":  "error",
-			"message": "Invalid request data",
-		})
-		return
-	}
-
-	fmt.Printf("CreateCVRequest: Creating request for CV %s by user %v\n", request.CVID, requestedByID)
-
-	// Check if CV exists and get the user_id and status
-	var cvOwnerID, cvStatus string
-	err := database.DB.QueryRow(c, "SELECT user_id, status FROM cv WHERE id = $1", request.CVID).Scan(&cvOwnerID, &cvStatus)
-	if err != nil {
-		fmt.Printf("CreateCVRequest: Error finding CV: %v\n", err)
-		c.JSON(http.StatusNotFound, gin.H{
-			"status":  "error",
-			"message": "CV not found",
-		})
-		return
-	}
-
-	// Check CV status before creating request
-	if cvStatus == "Chưa cập nhật" {
-		fmt.Printf("CreateCVRequest: CV %s is already in 'Chưa cập nhật' status, sending status message\n", request.CVID)
-		c.JSON(http.StatusOK, gin.H{
-			"status":  "success",
-			"message": "CV đang trong trạng thái chờ cập nhật",
-		})
-		return
-	}
-
-	// If CV is in "Đã cập nhật" or "Hủy yêu cầu" status, update it to "Chưa cập nhật"
-	if cvStatus == "Đã cập nhật" || cvStatus == "Hủy yêu cầu" {
-		fmt.Printf("CreateCVRequest: Updating CV %s status from '%s' to 'Chưa cập nhật'\n", request.CVID, cvStatus)
-		_, err = database.DB.Exec(c,
-			"UPDATE cv SET status = 'Chưa cập nhật' WHERE id = $1",
-			request.CVID)
-
-		if err != nil {
-			fmt.Printf("CreateCVRequest: Error updating CV status: %v\n", err)
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"status":  "error",
-				"message": "Error updating CV status",
-			})
-			return
-		}
-		fmt.Printf("CreateCVRequest: Successfully updated CV %s status to 'Chưa cập nhật'\n", request.CVID)
-	}
-
-	// Check if there's already an active request for this CV and cancel it
-	var existingRequestID string
-	err = database.DB.QueryRow(c,
-		"SELECT id FROM cv_update_requests WHERE cv_id = $1 AND status = 'Đang yêu cầu'",
-		request.CVID).Scan(&existingRequestID)
-
-	if err == nil {
-		// Active request exists, cancel it by changing status to "Đã huỷ"
-		fmt.Printf("CreateCVRequest: Found existing active request %s, cancelling it\n", existingRequestID)
-		_, err = database.DB.Exec(c,
-			"UPDATE cv_update_requests SET status = 'Đã huỷ' WHERE id = $1",
-			existingRequestID)
-
-		if err != nil {
-			fmt.Printf("CreateCVRequest: Error cancelling existing request: %v\n", err)
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"status":  "error",
-				"message": "Error cancelling existing CV update request",
-			})
-			return
-		}
-		fmt.Printf("CreateCVRequest: Successfully cancelled existing request %s\n", existingRequestID)
-	}
-
-	// Create new CV update request
-	var newRequestID string
-	var contentPtr *string
-	if request.Content != "" {
-		contentPtr = &request.Content
-	}
-
-	err = database.DB.QueryRow(c,
-		`INSERT INTO cv_update_requests (id, cv_id, requested_by, requested_at, status, content)
-		VALUES (uuid_generate_v4(), $1, $2, NOW(), 'Đang yêu cầu', $3)
-		RETURNING id`,
-		request.CVID, requestedByID, contentPtr).Scan(&newRequestID)
-
-	if err != nil {
-		fmt.Printf("CreateCVRequest: Error creating request: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"status":  "error",
-			"message": "Error creating CV update request",
-		})
-		return
-	}
-
-	fmt.Printf("CreateCVRequest: Successfully created request %s\n", newRequestID)
-
-	// Send SSE notification to CV owner
-	go func() {
-		// Get requester information for the notification
-		var requesterName string
-		err := database.DB.QueryRow(c, "SELECT full_name FROM users WHERE id = $1", requestedByID).Scan(&requesterName)
-		if err != nil {
-			fmt.Printf("CreateCVRequest: Error getting requester name: %v\n", err)
-			requesterName = "Quản lý dự án"
-		}
-
-		// Create notification message
-		var notificationMessage string
-		if request.Content != "" {
-			notificationMessage = fmt.Sprintf("%s đã yêu cầu bạn cập nhật CV với lời nhắn: \"%s\"", requesterName, request.Content)
-		} else {
-			notificationMessage = fmt.Sprintf("%s đã yêu cầu bạn cập nhật CV. Vui lòng cập nhật CV của bạn trong thời gian sớm nhất.", requesterName)
-		}
-
-		notificationData := map[string]any{
-			"type":           "cv_update_request",
-			"title":          "Yêu cầu cập nhật CV",
-			"message":        notificationMessage,
-			"cv_id":          request.CVID,
-			"request_id":     newRequestID,
-			"requested_by":   requestedByID,
-			"requester_name": requesterName,
-			"content":        request.Content,
-			"timestamp":      time.Now().Unix(),
-		}
-
-		SendSSENotificationToUser(cvOwnerID, "cv_update_request", notificationData)
-		fmt.Printf("CreateCVRequest: SSE notification sent to CV owner %s\n", cvOwnerID)
-	}()
-
-	// Create response
-	response := models.CVUpdateRequest{
-		ID:          newRequestID,
-		CVID:        request.CVID,
-		RequestedBy: requestedByID.(string),
-		RequestedAt: time.Now(),
-		Status:      "Đang yêu cầu",
-	}
-
-	// Determine message based on whether we cancelled an existing request
-	message := "Yêu cầu cập nhật CV đã được tạo thành công"
-	if existingRequestID != "" {
-		message = "Yêu cầu cập nhật CV đã được tạo thành công"
-	}
-
-	c.JSON(http.StatusCreated, gin.H{
-		"status":  "success",
-		"data":    response,
-		"message": message,
-	})
-}
-
-// UpdateCVRequestStatus updates the status of a CV update request
-func UpdateCVRequestStatus(c *gin.Context) {
-	id := c.Param("id")
-
-	var request struct {
-		Status string `json:"status" binding:"required"`
-	}
-
-	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status":  "error",
-			"message": "Invalid request data",
-		})
-		return
-	}
-
-	// Validate status
-	if request.Status != "Đã xử lý" && request.Status != "Đã huỷ" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"status":  "error",
-			"message": "Invalid status value",
-		})
-		return
-	}
-
-	fmt.Printf("UpdateCVRequestStatus: Updating request %s to status %s\n", id, request.Status)
-
-	// Update the request status in database
-	result, err := database.DB.Exec(c,
-		`UPDATE cv_update_requests SET status = $1 WHERE id = $2`,
-		request.Status, id)
-
-	if err != nil {
-		fmt.Printf("UpdateCVRequestStatus: Error updating request: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"status":  "error",
-			"message": "Error updating CV update request status",
-		})
-		return
-	}
-
-	rowsAffected := result.RowsAffected()
-	if rowsAffected == 0 {
-		c.JSON(http.StatusNotFound, gin.H{
-			"status":  "error",
-			"message": "CV update request not found",
-		})
-		return
-	}
-
-	// Get the updated request details
-	var updatedRequest models.CVUpdateRequest
-	err = database.DB.QueryRow(c,
-		`SELECT id, cv_id, requested_by, requested_at, status, is_read, content
-		FROM cv_update_requests WHERE id = $1`,
-		id).Scan(&updatedRequest.ID, &updatedRequest.CVID, &updatedRequest.RequestedBy,
-		&updatedRequest.RequestedAt, &updatedRequest.Status, &updatedRequest.IsRead, &updatedRequest.Content)
-
-	if err != nil {
-		fmt.Printf("UpdateCVRequestStatus: Error fetching updated request: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"status":  "error",
-			"message": "Error fetching updated request details",
-		})
-		return
-	}
-
-	fmt.Printf("UpdateCVRequestStatus: Successfully updated request %s to status %s\n", id, request.Status)
-
-	c.JSON(http.StatusOK, gin.H{
-		"status":  "success",
-		"message": "CV update request status updated successfully",
-		"data":    updatedRequest,
 	})
 }
 
@@ -511,17 +272,21 @@ func CreateOrUpdateCV(c *gin.Context) {
 		return
 	}
 
-	// Define the request structure for CV creation
+	// Define the request structure for CV creation (all fields optional)
 	var request struct {
-		HoTen           string `json:"ho_ten" binding:"required"`
-		ChucDanh        string `json:"chuc_danh" binding:"required"`
-		AnhChanDung     string `json:"anh_chan_dung"`
-		TomTat          string `json:"tom_tat" binding:"required"`
-		ThongTinCaNhan  string `json:"thong_tin_ca_nhan" binding:"required"`
-		ThongTinDaoTao  string `json:"thong_tin_dao_tao" binding:"required"`
-		ThongTinKhoaHoc string `json:"thong_tin_khoa_hoc"`
-		ThongTinKiNang  string `json:"thong_tin_ki_nang" binding:"required"`
-		CVPath          string `json:"cv_path" binding:"required"`
+		FullName     string                      `json:"full_name"`
+		JobTitle     string                      `json:"job_title"`
+		Summary      string                      `json:"summary"`
+		Birthday     string                      `json:"birthday"`
+		Gender       string                      `json:"gender"`
+		Email        string                      `json:"email"`
+		Phone        string                      `json:"phone"`
+		Address      string                      `json:"address"`
+		CVPath       string                      `json:"cv_path"`
+		PortraitPath string                      `json:"portrait_path"`
+		Education    []models.CVEducationRequest `json:"education"`
+		Courses      []models.CVCourseRequest    `json:"courses"`
+		Skills       []models.CVSkillRequest     `json:"skills"`
 	}
 
 	// Bind JSON request to struct
@@ -534,13 +299,6 @@ func CreateOrUpdateCV(c *gin.Context) {
 	}
 
 	fmt.Printf("CreateOrUpdateCV: Processing CV for user %v\n", userID)
-
-	// Check if all required fields are filled (not empty/blank)
-	requiredFieldsFilled := request.HoTen != "" && request.ChucDanh != "" &&
-		request.TomTat != "" && request.ThongTinCaNhan != "" &&
-		request.ThongTinDaoTao != "" && request.ThongTinKiNang != ""
-
-	fmt.Printf("CreateOrUpdateCV: Required fields filled: %v\n", requiredFieldsFilled)
 
 	// Check if user already has a CV (since user_id is unique in cv table)
 	var existingCVID string
@@ -568,17 +326,48 @@ func CreateOrUpdateCV(c *gin.Context) {
 		currentStatus = "" // No existing status for new CV
 	}
 
-	// Determine the new status based on required fields completion
+	// Check if all required fields are filled to determine status
 	var newStatus string
-	if requiredFieldsFilled {
-		newStatus = "Đã cập nhật"
-	} else {
-		// If not all required fields are filled, keep current status or set to "Chưa cập nhật" for new CVs
-		if isUpdate {
-			newStatus = currentStatus // Keep existing status
-		} else {
-			newStatus = "Chưa cập nhật" // Default for new incomplete CVs
+	var responseMessage string
+
+	// Check if all required fields are filled
+	hasRequiredPersonalInfo := request.FullName != "" && request.JobTitle != "" && request.Summary != "" &&
+		request.Birthday != "" && request.Gender != "" && request.Email != "" &&
+		request.Phone != "" && request.Address != ""
+
+	// Check if education has at least one entry with organization
+	hasEducation := false
+	if request.Education != nil && len(request.Education) > 0 {
+		for _, edu := range request.Education {
+			if edu.Organization != "" {
+				hasEducation = true
+				break
+			}
 		}
+	}
+
+	// Check if skills has at least one entry with skill name
+	hasSkills := false
+	if request.Skills != nil && len(request.Skills) > 0 {
+		for _, skill := range request.Skills {
+			if skill.SkillName != "" {
+				hasSkills = true
+				break
+			}
+		}
+	}
+
+	// Determine status based on completeness
+	if hasRequiredPersonalInfo && hasEducation && hasSkills {
+		newStatus = "Đã cập nhật"
+		if isUpdate {
+			responseMessage = "Cập nhật CV thành công"
+		} else {
+			responseMessage = "Cập nhật CV thành công"
+		}
+	} else {
+		newStatus = "Chưa cập nhật"
+		responseMessage = "Bạn cần cập nhật thêm các trường yêu cầu"
 	}
 
 	fmt.Printf("CreateOrUpdateCV: New status will be: %s\n", newStatus)
@@ -619,12 +408,20 @@ func CreateOrUpdateCV(c *gin.Context) {
 		if existingCVDetailID != nil {
 			// Update existing CV details record
 			cvDetailID = *existingCVDetailID
+			var birthday *time.Time
+			if request.Birthday != "" {
+				if parsedDate, err := time.Parse("2006-01-02", request.Birthday); err == nil {
+					birthday = &parsedDate
+				}
+			}
+
 			err = tx.QueryRow(c,
-				`UPDATE cv_details SET ho_ten = $1, chuc_danh = $2, anh_chan_dung = $3, tom_tat = $4, thong_tin_ca_nhan = $5,
-				thong_tin_dao_tao = $6, thong_tin_khoa_hoc = $7, thong_tin_ki_nang = $8, cv_path = $9
-				WHERE id = $10 RETURNING id`,
-				request.HoTen, request.ChucDanh, request.AnhChanDung, request.TomTat, request.ThongTinCaNhan,
-				request.ThongTinDaoTao, request.ThongTinKhoaHoc, request.ThongTinKiNang, request.CVPath, *existingCVDetailID).Scan(&cvDetailID)
+				`UPDATE cv_details SET full_name = $1, job_title = $2, summary = $3, birthday = $4, gender = $5, email = $6, phone = $7, address = $8, cvpath = $9, portraitpath = $10
+				WHERE id = $11 RETURNING id`,
+				request.FullName, request.JobTitle, request.Summary, birthday,
+				nullStringPtr(request.Gender), nullStringPtr(request.Email),
+				nullStringPtr(request.Phone), nullStringPtr(request.Address),
+				nullStringPtr(request.CVPath), nullStringPtr(request.PortraitPath), *existingCVDetailID).Scan(&cvDetailID)
 
 			if err != nil {
 				fmt.Printf("CreateOrUpdateCV: Error updating CV details record: %v\n", err)
@@ -636,12 +433,21 @@ func CreateOrUpdateCV(c *gin.Context) {
 			}
 		} else {
 			// Create new CV details record for existing CV
+			var birthday *time.Time
+			if request.Birthday != "" {
+				if parsedDate, err := time.Parse("2006-01-02", request.Birthday); err == nil {
+					birthday = &parsedDate
+				}
+			}
+
 			err = tx.QueryRow(c,
-				`INSERT INTO cv_details (id, cv_id, ho_ten, chuc_danh, anh_chan_dung, tom_tat, thong_tin_ca_nhan, thong_tin_dao_tao, thong_tin_khoa_hoc, thong_tin_ki_nang, cv_path)
-				VALUES (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+				`INSERT INTO cv_details (id, cv_id, full_name, job_title, summary, birthday, gender, email, phone, address, cvpath, portraitpath, created_at)
+				VALUES (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
 				RETURNING id`,
-				cvID, request.HoTen, request.ChucDanh, request.AnhChanDung, request.TomTat, request.ThongTinCaNhan,
-				request.ThongTinDaoTao, request.ThongTinKhoaHoc, request.ThongTinKiNang, request.CVPath).Scan(&cvDetailID)
+				cvID, request.FullName, request.JobTitle, request.Summary, birthday,
+				nullStringPtr(request.Gender), nullStringPtr(request.Email),
+				nullStringPtr(request.Phone), nullStringPtr(request.Address),
+				nullStringPtr(request.CVPath), nullStringPtr(request.PortraitPath)).Scan(&cvDetailID)
 
 			if err != nil {
 				fmt.Printf("CreateOrUpdateCV: Error creating CV details record for existing CV: %v\n", err)
@@ -670,12 +476,21 @@ func CreateOrUpdateCV(c *gin.Context) {
 		}
 
 		// Insert CV details record
+		var birthday *time.Time
+		if request.Birthday != "" {
+			if parsedDate, err := time.Parse("2006-01-02", request.Birthday); err == nil {
+				birthday = &parsedDate
+			}
+		}
+
 		err = tx.QueryRow(c,
-			`INSERT INTO cv_details (id, cv_id, ho_ten, chuc_danh, anh_chan_dung, tom_tat, thong_tin_ca_nhan, thong_tin_dao_tao, thong_tin_khoa_hoc, thong_tin_ki_nang, cv_path)
-			VALUES (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+			`INSERT INTO cv_details (id, cv_id, full_name, job_title, summary, birthday, gender, email, phone, address, cvpath, portraitpath, created_at)
+			VALUES (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
 			RETURNING id`,
-			cvID, request.HoTen, request.ChucDanh, request.AnhChanDung, request.TomTat, request.ThongTinCaNhan,
-			request.ThongTinDaoTao, request.ThongTinKhoaHoc, request.ThongTinKiNang, request.CVPath).Scan(&cvDetailID)
+			cvID, request.FullName, request.JobTitle, request.Summary, birthday,
+			nullStringPtr(request.Gender), nullStringPtr(request.Email),
+			nullStringPtr(request.Phone), nullStringPtr(request.Address),
+			nullStringPtr(request.CVPath), nullStringPtr(request.PortraitPath)).Scan(&cvDetailID)
 
 		if err != nil {
 			fmt.Printf("CreateOrUpdateCV: Error creating CV details record: %v\n", err)
@@ -684,6 +499,112 @@ func CreateOrUpdateCV(c *gin.Context) {
 				"message": "Error creating CV details record",
 			})
 			return
+		}
+	}
+
+	// Handle Education data - only update if data is provided
+	if request.Education != nil && len(request.Education) > 0 {
+		// Delete existing education records for this CV detail
+		_, err = tx.Exec(c, "DELETE FROM cv_education WHERE cv_id = $1", cvDetailID)
+		if err != nil {
+			fmt.Printf("CreateOrUpdateCV: Error deleting existing education records: %v\n", err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status":  "error",
+				"message": "Error updating education data",
+			})
+			return
+		}
+
+		// Insert new education records
+		for _, edu := range request.Education {
+			// Only insert if organization is not empty (required field)
+			if edu.Organization != "" {
+				_, err = tx.Exec(c,
+					`INSERT INTO cv_education (id, cv_id, organization, degree, major, graduation_year)
+					VALUES (uuid_generate_v4(), $1, $2, $3, $4, $5)`,
+					cvDetailID, edu.Organization, edu.Degree, edu.Major, edu.GraduationYear)
+				if err != nil {
+					fmt.Printf("CreateOrUpdateCV: Error inserting education record: %v\n", err)
+					c.JSON(http.StatusInternalServerError, gin.H{
+						"status":  "error",
+						"message": "Error saving education data",
+					})
+					return
+				}
+			}
+		}
+	}
+
+	// Handle Courses data - only update if data is provided
+	if request.Courses != nil && len(request.Courses) > 0 {
+		// Delete existing course records for this CV detail
+		_, err = tx.Exec(c, "DELETE FROM cv_courses WHERE cv_id = $1", cvDetailID)
+		if err != nil {
+			fmt.Printf("CreateOrUpdateCV: Error deleting existing course records: %v\n", err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status":  "error",
+				"message": "Error updating course data",
+			})
+			return
+		}
+
+		// Insert new course records
+		for _, course := range request.Courses {
+			// Only insert if course name is not empty (required field)
+			if course.CourseName != "" {
+				var finishDate *time.Time
+				if course.FinishDate != "" {
+					if parsedDate, err := time.Parse("2006-01-02", course.FinishDate); err == nil {
+						finishDate = &parsedDate
+					}
+				}
+
+				_, err = tx.Exec(c,
+					`INSERT INTO cv_courses (id, cv_id, course_name, organization, finish_date)
+					VALUES (uuid_generate_v4(), $1, $2, $3, $4)`,
+					cvDetailID, course.CourseName, course.Organization, finishDate)
+				if err != nil {
+					fmt.Printf("CreateOrUpdateCV: Error inserting course record: %v\n", err)
+					c.JSON(http.StatusInternalServerError, gin.H{
+						"status":  "error",
+						"message": "Error saving course data",
+					})
+					return
+				}
+			}
+		}
+	}
+
+	// Handle Skills data - only update if data is provided
+	if request.Skills != nil && len(request.Skills) > 0 {
+		// Delete existing skill records for this CV detail
+		_, err = tx.Exec(c, "DELETE FROM cv_skills WHERE cv_id = $1", cvDetailID)
+		if err != nil {
+			fmt.Printf("CreateOrUpdateCV: Error deleting existing skill records: %v\n", err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status":  "error",
+				"message": "Error updating skill data",
+			})
+			return
+		}
+
+		// Insert new skill records
+		for _, skill := range request.Skills {
+			// Only insert if skill name is not empty (required field)
+			if skill.SkillName != "" {
+				_, err = tx.Exec(c,
+					`INSERT INTO cv_skills (id, cv_id, skill_name, description)
+					VALUES (uuid_generate_v4(), $1, $2, $3)`,
+					cvDetailID, skill.SkillName, skill.Description)
+				if err != nil {
+					fmt.Printf("CreateOrUpdateCV: Error inserting skill record: %v\n", err)
+					c.JSON(http.StatusInternalServerError, gin.H{
+						"status":  "error",
+						"message": "Error saving skill data",
+					})
+					return
+				}
+			}
 		}
 	}
 
@@ -723,36 +644,55 @@ func CreateOrUpdateCV(c *gin.Context) {
 			String: userID.(string),
 			Valid:  true,
 		},
-		LastUpdatedAt: sql.NullTime{Time: time.Now()},
+		LastUpdatedAt: sql.NullTime{Time: time.Now(), Valid: true},
 		Status:        newStatus,
-		Details: models.CVDetail{
-			ID:              cvDetailID,
-			CVID:            cvID,
-			HoTen:           request.HoTen,
-			ChucDanh:        request.ChucDanh,
-			AnhChanDung:     request.AnhChanDung,
-			TomTat:          request.TomTat,
-			ThongTinCaNhan:  request.ThongTinCaNhan,
-			ThongTinDaoTao:  request.ThongTinDaoTao,
-			ThongTinKhoaHoc: request.ThongTinKhoaHoc,
-			ThongTinKiNang:  request.ThongTinKiNang,
-			CVPath:          request.CVPath,
-		},
 	}
 
-	var responseMessage string
-	var statusCode int
-
-	// Determine response message based on field completion
-	if !requiredFieldsFilled {
-		responseMessage = "Cần điền đủ các trường bắt buộc"
-	} else {
-		if isUpdate {
-			responseMessage = "CV updated successfully"
-		} else {
-			responseMessage = "CV created successfully"
+	// Create CV details object
+	var birthday *time.Time
+	if request.Birthday != "" {
+		if parsedDate, err := time.Parse("2006-01-02", request.Birthday); err == nil {
+			birthday = &parsedDate
 		}
 	}
+
+	details := models.CVDetail{
+		ID:           cvDetailID,
+		CVID:         cvID,
+		FullName:     request.FullName,
+		JobTitle:     request.JobTitle,
+		Summary:      request.Summary,
+		Birthday:     birthday,
+		Gender:       nullStringPtr(request.Gender),
+		Email:        nullStringPtr(request.Email),
+		Phone:        nullStringPtr(request.Phone),
+		Address:      nullStringPtr(request.Address),
+		CVPath:       nullStringPtr(request.CVPath),
+		PortraitPath: nullStringPtr(request.PortraitPath),
+		CreatedAt:    time.Now(),
+	}
+
+	// Load related data (education, courses, skills) using helper function
+	education, courses, skills, err := loadCVRelatedData(c, cvDetailID)
+	if err != nil {
+		fmt.Printf("CreateOrUpdateCV: Error loading related data: %v\n", err)
+		// Don't fail the entire operation, just log the error and continue with empty arrays
+		details.Education = []models.CVEducation{}
+		details.Courses = []models.CVCourse{}
+		details.Skills = []models.CVSkill{}
+	} else {
+		details.Education = education
+		details.Courses = courses
+		details.Skills = skills
+	}
+
+	// Create response with both CV and details
+	response := map[string]interface{}{
+		"cv":      cv,
+		"details": details,
+	}
+
+	var statusCode int
 
 	statusCode = http.StatusOK
 	if !isUpdate {
@@ -765,489 +705,157 @@ func CreateOrUpdateCV(c *gin.Context) {
 	c.JSON(statusCode, gin.H{
 		"status":  "success",
 		"message": responseMessage,
-		"data":    cv,
+		"data":    response,
 	})
 }
 
-// MarkCVRequestAsRead marks a specific CV update request as read
-func MarkCVRequestAsRead(c *gin.Context) {
-	// Get user ID from context (set by auth middleware)
-	userID, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"status":  "error",
-			"message": "Unauthorized - user ID not found",
-		})
-		return
-	}
-
-	requestID := c.Param("id")
-	if requestID == "" {
+// DeleteCV clears all CV data for a specified user and sets status to "Chưa cập nhật"
+// Admin can delete any user's CV by providing user_id parameter
+func DeleteCV(c *gin.Context) {
+	// Get target user ID from URL parameter
+	targetUserID := c.Param("user_id")
+	if targetUserID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  "error",
-			"message": "Request ID is required",
+			"message": "User ID is required",
 		})
 		return
 	}
 
-	fmt.Printf("MarkCVRequestAsRead: Marking request %s as read for user %v\n", requestID, userID)
+	// Get current user ID from context (set by auth middleware) for logging
+	currentUserID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"status":  "error",
+			"message": "Unauthorized - user ID not found",
+		})
+		return
+	}
 
-	// Update the is_read status for the specific request, but only if the user owns the CV
-	result, err := database.DB.Exec(c,
-		`UPDATE cv_update_requests
-		SET is_read = true
-		WHERE id = $1
-		AND cv_id IN (SELECT id FROM cv WHERE user_id = $2)`,
-		requestID, userID)
+	fmt.Printf("DeleteCV: Admin %v processing CV deletion for user %v\n", currentUserID, targetUserID)
+
+	// Check if user has a CV
+	var existingCVID string
+	var existingCVDetailID *string
+	err := database.DB.QueryRow(c,
+		`SELECT cv.id, cv_details.id
+		FROM cv
+		LEFT JOIN cv_details ON cv.id = cv_details.cv_id
+		WHERE cv.user_id = $1`, targetUserID).Scan(&existingCVID, &existingCVDetailID)
 
 	if err != nil {
-		fmt.Printf("MarkCVRequestAsRead: Error updating request: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"status":  "error",
-			"message": "Error marking request as read",
-		})
-		return
-	}
-
-	rowsAffected := result.RowsAffected()
-	if rowsAffected == 0 {
+		fmt.Printf("DeleteCV: No CV found for user %v: %v\n", targetUserID, err)
 		c.JSON(http.StatusNotFound, gin.H{
 			"status":  "error",
-			"message": "Request not found or you don't have permission to update it",
+			"message": "Không tìm thấy CV để xóa",
 		})
 		return
 	}
 
-	fmt.Printf("MarkCVRequestAsRead: Successfully marked request %s as read\n", requestID)
+	fmt.Printf("DeleteCV: Found CV %s for user %v\n", existingCVID, targetUserID)
 
-	c.JSON(http.StatusOK, gin.H{
-		"status":  "success",
-		"message": "Request marked as read",
-	})
-}
-
-// MarkAllCVRequestsAsRead marks all CV update requests as read for the authenticated user
-func MarkAllCVRequestsAsRead(c *gin.Context) {
-	// Get user ID from context (set by auth middleware)
-	userID, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"status":  "error",
-			"message": "Unauthorized - user ID not found",
-		})
-		return
-	}
-
-	fmt.Printf("MarkAllCVRequestsAsRead: Marking all requests as read for user %v\n", userID)
-
-	// Update all unread requests for the user's CVs
-	result, err := database.DB.Exec(c,
-		`UPDATE cv_update_requests
-		SET is_read = true
-		WHERE is_read = false
-		AND cv_id IN (SELECT id FROM cv WHERE user_id = $1)`,
-		userID)
-
+	// Start transaction
+	tx, err := database.DB.Begin(c)
 	if err != nil {
-		fmt.Printf("MarkAllCVRequestsAsRead: Error updating requests: %v\n", err)
+		fmt.Printf("DeleteCV: Error starting transaction: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
-			"message": "Error marking all requests as read",
+			"message": "Error starting transaction",
+		})
+		return
+	}
+	defer tx.Rollback(c)
+
+	// Update CV status to "Chưa cập nhật" (use current user as the one who performed the deletion)
+	err = tx.QueryRow(c,
+		`UPDATE cv SET last_updated_by = $1, last_updated_at = NOW(), status = 'Chưa cập nhật'
+		WHERE id = $2 RETURNING id`,
+		currentUserID, existingCVID).Scan(&existingCVID)
+
+	if err != nil {
+		fmt.Printf("DeleteCV: Error updating CV status: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Error updating CV status",
 		})
 		return
 	}
 
-	rowsAffected := result.RowsAffected()
-	fmt.Printf("MarkAllCVRequestsAsRead: Successfully marked %d requests as read\n", rowsAffected)
+	// If CV details exist, clear all fields
+	if existingCVDetailID != nil {
+		fmt.Printf("DeleteCV: Clearing CV details %s\n", *existingCVDetailID)
+
+		// Clear all CV details fields
+		err = tx.QueryRow(c,
+			`UPDATE cv_details SET
+			full_name = '', job_title = '', summary = '',
+			birthday = NULL, gender = NULL, email = NULL,
+			phone = NULL, address = NULL, cvpath = NULL, portraitpath = NULL
+			WHERE id = $1 RETURNING id`,
+			*existingCVDetailID).Scan(existingCVDetailID)
+
+		if err != nil {
+			fmt.Printf("DeleteCV: Error clearing CV details: %v\n", err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status":  "error",
+				"message": "Error clearing CV details",
+			})
+			return
+		}
+
+		// Delete all education records
+		_, err = tx.Exec(c, "DELETE FROM cv_education WHERE cv_id = $1", *existingCVDetailID)
+		if err != nil {
+			fmt.Printf("DeleteCV: Error deleting education records: %v\n", err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status":  "error",
+				"message": "Error clearing education data",
+			})
+			return
+		}
+
+		// Delete all course records
+		_, err = tx.Exec(c, "DELETE FROM cv_courses WHERE cv_id = $1", *existingCVDetailID)
+		if err != nil {
+			fmt.Printf("DeleteCV: Error deleting course records: %v\n", err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status":  "error",
+				"message": "Error clearing course data",
+			})
+			return
+		}
+
+		// Delete all skill records
+		_, err = tx.Exec(c, "DELETE FROM cv_skills WHERE cv_id = $1", *existingCVDetailID)
+		if err != nil {
+			fmt.Printf("DeleteCV: Error deleting skill records: %v\n", err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status":  "error",
+				"message": "Error clearing skill data",
+			})
+			return
+		}
+	}
+
+	// Commit transaction
+	err = tx.Commit(c)
+	if err != nil {
+		fmt.Printf("DeleteCV: Error committing transaction: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Error committing CV deletion",
+		})
+		return
+	}
+
+	fmt.Printf("DeleteCV: Successfully cleared CV %s for user %v\n", existingCVID, targetUserID)
 
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "success",
-		"message": fmt.Sprintf("Marked %d requests as read", rowsAffected),
+		"message": "Đã xóa CV thành công",
 		"data": gin.H{
-			"updated_count": rowsAffected,
+			"cv_id":  existingCVID,
+			"status": "Chưa cập nhật",
 		},
-	})
-}
-
-// GetAllCVRequestsForAdmin returns all CV update requests across all users (admin only)
-func GetAllCVRequestsForAdmin(c *gin.Context) {
-	fmt.Println("GetAllCVRequestsForAdmin: Fetching all CV requests for admin")
-
-	// Query to get all CV update requests with employee and requester information
-	rows, err := database.DB.Query(c,
-		`SELECT
-			cur.id,
-			cur.cv_id,
-			cur.requested_by,
-			cur.requested_at,
-			cur.status,
-			cur.is_read,
-			cur.content,
-			emp.full_name as employee_name,
-			COALESCE(dept.name, 'N/A') as department,
-			req.full_name as requester_name
-		FROM cv_update_requests cur
-		JOIN cv ON cur.cv_id = cv.id
-		JOIN users emp ON cv.user_id = emp.id
-		LEFT JOIN departments dept ON emp.department_id = dept.id
-		JOIN users req ON cur.requested_by = req.id
-		ORDER BY cur.requested_at DESC`)
-
-	if err != nil {
-		fmt.Printf("GetAllCVRequestsForAdmin: Error querying CV requests: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"status":  "error",
-			"message": "Error fetching CV update requests",
-		})
-		return
-	}
-	defer rows.Close()
-
-	// Process the query results
-	var requests []map[string]any
-	for rows.Next() {
-		var id, cvID, requestedBy, employeeName, department, requesterName, status string
-		var requestedAt time.Time
-		var isRead bool
-		var content *string
-
-		err := rows.Scan(&id, &cvID, &requestedBy, &requestedAt, &status, &isRead, &content,
-			&employeeName, &department, &requesterName)
-		if err != nil {
-			fmt.Printf("GetAllCVRequestsForAdmin: Error scanning row: %v\n", err)
-			continue
-		}
-
-		request := map[string]any{
-			"id":             id,
-			"cv_id":          cvID,
-			"requested_by":   requestedBy,
-			"requested_at":   requestedAt.Format(time.RFC3339),
-			"status":         status,
-			"is_read":        isRead,
-			"employee_name":  employeeName,
-			"department":     department,
-			"requester_name": requesterName,
-		}
-
-		if content != nil {
-			request["content"] = *content
-		}
-
-		requests = append(requests, request)
-	}
-
-	// Check for any errors during iteration
-	if err = rows.Err(); err != nil {
-		fmt.Printf("GetAllCVRequestsForAdmin: Error during row iteration: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"status":  "error",
-			"message": "Error processing CV update requests",
-		})
-		return
-	}
-
-	fmt.Printf("GetAllCVRequestsForAdmin: Successfully fetched %d CV requests\n", len(requests))
-
-	c.JSON(http.StatusOK, gin.H{
-		"status": "success",
-		"data":   requests,
-	})
-}
-
-// GetSentCVRequests returns all CV update requests sent by the authenticated user
-func GetSentCVRequests(c *gin.Context) {
-	// Get user ID from context (set by auth middleware)
-	userID, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"status":  "error",
-			"message": "Unauthorized - user ID not found",
-		})
-		return
-	}
-
-	fmt.Printf("GetSentCVRequests: Fetching CV requests sent by user %v\n", userID)
-
-	// Query to get all CV update requests sent by the user with employee information
-	rows, err := database.DB.Query(c,
-		`SELECT
-			cur.id,
-			cur.cv_id,
-			cur.requested_by,
-			cur.requested_at,
-			cur.status,
-			cur.is_read,
-			cur.content,
-			emp.full_name as employee_name,
-			COALESCE(dept.name, 'N/A') as department
-		FROM cv_update_requests cur
-		JOIN cv ON cur.cv_id = cv.id
-		JOIN users emp ON cv.user_id = emp.id
-		LEFT JOIN departments dept ON emp.department_id = dept.id
-		WHERE cur.requested_by = $1
-		ORDER BY cur.requested_at DESC`, userID)
-
-	if err != nil {
-		fmt.Printf("GetSentCVRequests: Error querying sent CV requests: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"status":  "error",
-			"message": "Error fetching sent CV update requests",
-		})
-		return
-	}
-	defer rows.Close()
-
-	// Process the query results
-	var requests []map[string]any
-	for rows.Next() {
-		var id, cvID, requestedBy, employeeName, department, status string
-		var requestedAt time.Time
-		var isRead bool
-		var content *string
-
-		err := rows.Scan(&id, &cvID, &requestedBy, &requestedAt, &status, &isRead, &content,
-			&employeeName, &department)
-		if err != nil {
-			fmt.Printf("GetSentCVRequests: Error scanning row: %v\n", err)
-			continue
-		}
-
-		request := map[string]any{
-			"id":            id,
-			"cv_id":         cvID,
-			"requested_by":  requestedBy,
-			"requested_at":  requestedAt.Format(time.RFC3339),
-			"status":        status,
-			"is_read":       isRead,
-			"employee_name": employeeName,
-			"department":    department,
-		}
-
-		if content != nil {
-			request["content"] = *content
-		}
-
-		requests = append(requests, request)
-	}
-
-	// Check for any errors during iteration
-	if err = rows.Err(); err != nil {
-		fmt.Printf("GetSentCVRequests: Error during row iteration: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"status":  "error",
-			"message": "Error processing sent CV update requests",
-		})
-		return
-	}
-
-	fmt.Printf("GetSentCVRequests: Successfully fetched %d sent CV requests\n", len(requests))
-
-	c.JSON(http.StatusOK, gin.H{
-		"status": "success",
-		"data":   requests,
-	})
-}
-
-// GetSentCVRequestsPM returns CV update requests sent by the PM to users in their managed projects
-func GetSentCVRequestsPM(c *gin.Context) {
-	// Get user ID from context (set by auth middleware)
-	userID, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"status":  "error",
-			"message": "Unauthorized - user ID not found",
-		})
-		return
-	}
-
-	fmt.Printf("GetSentCVRequestsPM: Fetching CV requests sent by PM %v\n", userID)
-
-	// Query to get CV update requests sent by the PM to users in their managed projects
-	rows, err := database.DB.Query(c,
-		`SELECT
-			cur.id,
-			cur.cv_id,
-			cur.requested_by,
-			cur.requested_at,
-			cur.status,
-			cur.is_read,
-			cur.content,
-			emp.full_name as employee_name,
-			emp.employee_code,
-			COALESCE(dept.name, 'N/A') as department
-		FROM cv_update_requests cur
-		JOIN cv ON cur.cv_id = cv.id
-		JOIN users emp ON cv.user_id = emp.id
-		LEFT JOIN departments dept ON emp.department_id = dept.id
-		WHERE cur.requested_by = $1
-		AND cv.user_id IN (
-			SELECT DISTINCT pm.user_id
-			FROM project_members pm
-			JOIN project_members pm_requester ON pm.project_id = pm_requester.project_id
-			WHERE pm_requester.user_id = $2 AND pm_requester.role_in_project = 'PM'
-		)
-		ORDER BY cur.requested_at DESC`, userID, userID)
-
-	if err != nil {
-		fmt.Printf("GetSentCVRequestsPM: Error querying sent CV requests: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"status":  "error",
-			"message": "Error fetching sent CV update requests",
-		})
-		return
-	}
-	defer rows.Close()
-
-	// Process the query results
-	var requests []map[string]any
-	for rows.Next() {
-		var id, cvID, requestedBy, employeeName, employeeCode, department, status string
-		var requestedAt time.Time
-		var isRead bool
-		var content *string
-
-		err := rows.Scan(&id, &cvID, &requestedBy, &requestedAt, &status, &isRead, &content,
-			&employeeName, &employeeCode, &department)
-		if err != nil {
-			fmt.Printf("GetSentCVRequestsPM: Error scanning row: %v\n", err)
-			continue
-		}
-
-		request := map[string]any{
-			"id":            id,
-			"cv_id":         cvID,
-			"requested_by":  requestedBy,
-			"requested_at":  requestedAt.Format(time.RFC3339),
-			"status":        status,
-			"is_read":       isRead,
-			"employee_name": employeeName,
-			"employee_code": employeeCode,
-			"department":    department,
-		}
-
-		if content != nil {
-			request["content"] = *content
-		}
-
-		requests = append(requests, request)
-	}
-
-	// Check for any errors during iteration
-	if err = rows.Err(); err != nil {
-		fmt.Printf("GetSentCVRequestsPM: Error during row iteration: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"status":  "error",
-			"message": "Error processing sent CV update requests",
-		})
-		return
-	}
-
-	fmt.Printf("GetSentCVRequestsPM: Successfully fetched %d sent CV requests for PM\n", len(requests))
-
-	c.JSON(http.StatusOK, gin.H{
-		"status": "success",
-		"data":   requests,
-	})
-}
-
-// GetSentCVRequestsBUL returns CV update requests sent by the BUL to users in their Business Unit
-func GetSentCVRequestsBUL(c *gin.Context) {
-	// Get user ID from context (set by auth middleware)
-	userID, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"status":  "error",
-			"message": "Unauthorized - user ID not found",
-		})
-		return
-	}
-
-	fmt.Printf("GetSentCVRequestsBUL: Fetching CV requests sent by BUL %v\n", userID)
-
-	// Query to get CV update requests sent by the BUL to users in their Business Unit
-	rows, err := database.DB.Query(c,
-		`SELECT
-			cur.id,
-			cur.cv_id,
-			cur.requested_by,
-			cur.requested_at,
-			cur.status,
-			cur.is_read,
-			cur.content,
-			emp.full_name as employee_name,
-			emp.employee_code,
-			COALESCE(dept.name, 'N/A') as department
-		FROM cv_update_requests cur
-		JOIN cv ON cur.cv_id = cv.id
-		JOIN users emp ON cv.user_id = emp.id
-		LEFT JOIN departments dept ON emp.department_id = dept.id
-		WHERE cur.requested_by = $1
-		AND emp.department_id = (
-			SELECT department_id
-			FROM users
-			WHERE id = $2
-		)
-		ORDER BY cur.requested_at DESC`, userID, userID)
-
-	if err != nil {
-		fmt.Printf("GetSentCVRequestsBUL: Error querying sent CV requests: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"status":  "error",
-			"message": "Error fetching sent CV update requests",
-		})
-		return
-	}
-	defer rows.Close()
-
-	// Process the query results
-	var requests []map[string]any
-	for rows.Next() {
-		var id, cvID, requestedBy, employeeName, employeeCode, department, status string
-		var requestedAt time.Time
-		var isRead bool
-		var content *string
-
-		err := rows.Scan(&id, &cvID, &requestedBy, &requestedAt, &status, &isRead, &content,
-			&employeeName, &employeeCode, &department)
-		if err != nil {
-			fmt.Printf("GetSentCVRequestsBUL: Error scanning row: %v\n", err)
-			continue
-		}
-
-		request := map[string]any{
-			"id":            id,
-			"cv_id":         cvID,
-			"requested_by":  requestedBy,
-			"requested_at":  requestedAt.Format(time.RFC3339),
-			"status":        status,
-			"is_read":       isRead,
-			"employee_name": employeeName,
-			"employee_code": employeeCode,
-			"department":    department,
-		}
-
-		if content != nil {
-			request["content"] = *content
-		}
-
-		requests = append(requests, request)
-	}
-
-	// Check for any errors during iteration
-	if err = rows.Err(); err != nil {
-		fmt.Printf("GetSentCVRequestsBUL: Error during row iteration: %v\n", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"status":  "error",
-			"message": "Error processing sent CV update requests",
-		})
-		return
-	}
-
-	fmt.Printf("GetSentCVRequestsBUL: Successfully fetched %d sent CV requests for BUL\n", len(requests))
-
-	c.JSON(http.StatusOK, gin.H{
-		"status": "success",
-		"data":   requests,
 	})
 }

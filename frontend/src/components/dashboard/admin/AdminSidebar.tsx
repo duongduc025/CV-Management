@@ -2,7 +2,6 @@
 
 import {
   Home,
-  FileText,
   MessageSquare,
   Building2,
   FolderOpen,
@@ -10,6 +9,7 @@ import {
   X,
   Menu
 } from 'lucide-react';
+import Link from 'next/link';
 
 interface AdminSidebarProps {
   activeTab: string;
@@ -59,12 +59,7 @@ export default function AdminSidebar({
   setSidebarOpen,
   isMobile
 }: AdminSidebarProps) {
-  const handleTabClick = (tabId: string) => {
-    setActiveTab(tabId);
-    if (isMobile) {
-      setSidebarOpen(false);
-    }
-  };
+
 
   return (
     <>
@@ -94,7 +89,7 @@ export default function AdminSidebar({
           <div className="flex items-center justify-center">
             <div>
               <h1 className="text-xl font-bold" style={{ color: '#E60012' }}>
-                CV Management
+                Admin
               </h1>
             </div>
             {isMobile && (
@@ -109,46 +104,43 @@ export default function AdminSidebar({
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 p-4 space-y-2">
-          {navigationItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = activeTab === item.id;
+        <nav className="mt-8 px-4">
+          <ul className="space-y-2">
+            {navigationItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = activeTab === item.id;
 
-            return (
-              <button
-                key={item.id}
-                onClick={() => handleTabClick(item.id)}
-                className={`
-                  w-full flex items-center px-4 py-3 text-left rounded-lg transition-all duration-200
-                  ${isActive
-                    ? 'text-white shadow-md'
-                    : 'text-gray-700 hover:bg-gray-100'
-                  }
-                `}
-                style={{
-                  backgroundColor: isActive ? '#E60012' : 'transparent'
-                }}
-                title={`Navigate to /admin#${item.id}`}
-              >
-                <Icon className="h-5 w-5 mr-3 flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium truncate">{item.name}</div>
-                  <div className={`text-xs truncate ${isActive ? 'text-red-100' : 'text-gray-500'}`}>
-                    {item.description}
-                  </div>
-                </div>
-              </button>
-            );
-          })}
+              return (
+                <li key={item.id}>
+                  <Link
+                    href={`#${item.id}`}
+                    className={`w-full flex items-center px-3 py-3 text-left rounded-lg transition-colors duration-200 ${
+                      isActive
+                        ? 'bg-red-50 text-brand-red border-r-2 border-brand-red'
+                        : 'text-brand-gray hover:bg-gray-100 hover:text-brand-gray'
+                    }`}
+                    onClick={() => {
+                      setActiveTab(item.id);
+                      if (isMobile) {
+                        setSidebarOpen(false);
+                      }
+                    }}
+                  >
+                    <Icon className={`w-5 h-5 mr-3 ${isActive ? 'text-brand-red' : 'text-gray-500'}`} />
+                    <div className="flex-1">
+                      <div className={`text-sm font-medium ${isActive ? 'text-brand-red' : 'text-brand-gray'}`}>
+                        {item.name}
+                      </div>
+                      <div className="text-xs text-gray-500 mt-0.5">
+                        {item.description}
+                      </div>
+                    </div>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
         </nav>
-
-        {/* URL Display */}
-        <div className="p-4 border-t border-gray-200">
-          <div className="text-xs text-gray-500 mb-1">Current URL:</div>
-          <div className="text-xs font-mono bg-gray-100 p-2 rounded text-gray-700 break-all">
-            /admin#{activeTab}
-          </div>
-        </div>
       </div>
     </>
   );

@@ -43,7 +43,16 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           const cvRequests = await getCVUpdateRequests();
 
           // Convert CV requests to notifications format, handle null/undefined case
-          const cvNotifications: Notification[] = (cvRequests || []).map((request: any) => ({
+          const cvNotifications: Notification[] = (cvRequests || []).map((request: {
+            id: string;
+            title?: string;
+            message?: string;
+            requester_name?: string;
+            is_read?: boolean;
+            read?: boolean;
+            requested_at: string;
+            status: 'Đang yêu cầu' | 'Đã xử lý' | 'Đã huỷ';
+          }) => ({
             id: request.id,
             title: request.title || 'Yêu cầu cập nhật CV',
             message: request.message || `${request.requester_name} đã yêu cầu bạn cập nhật CV.`,
@@ -64,7 +73,12 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       fetchCVRequests();
 
       // Setup SSE connection for real-time notifications
-      const handleSSENotification = (notificationData: any) => {
+      const handleSSENotification = (notificationData: {
+        request_id?: string;
+        title: string;
+        message: string;
+        type: 'info' | 'warning' | 'error' | 'success';
+      }) => {
         console.log('Adding real-time notification to UI:', notificationData);
         // Use the actual request_id from the SSE data if available, otherwise generate a temporary ID
         const notificationId = notificationData.request_id || `sse-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
@@ -101,12 +115,14 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         });
       }
 
-      // Connect to SSE
-      sseService.connect().then(() => {
-        console.log('SSE connected successfully for user:', user.id);
-      }).catch((error) => {
-        console.error('Failed to connect to SSE:', error);
-      });
+      // Connect to SSE only if not already connected
+      if (!sseService.isConnected()) {
+        sseService.connect().then(() => {
+          console.log('SSE connected successfully for user:', user.id);
+        }).catch((error) => {
+          console.error('Failed to connect to SSE:', error);
+        });
+      }
 
       // Cleanup on unmount
       return () => {
@@ -116,7 +132,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       // User logged out, disconnect SSE
       sseService.disconnect();
     }
-  }, [user]);
+  }, [user]); // Include user in dependencies
 
   const addNotification = (notificationData: Omit<Notification, 'id' | 'createdAt' | 'read'>) => {
     const newNotification: Notification = {

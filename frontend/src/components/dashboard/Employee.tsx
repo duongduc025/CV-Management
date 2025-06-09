@@ -16,7 +16,7 @@ export default function Employee({ user }: MyProfileProps) {
           background: 'linear-gradient(to right, #E60012, #B8000E)' 
         }}
       >
-        <h2 className="text-2xl font-bold mb-2">Hồ sơ của tôi</h2>
+        <h2 className="text-2xl font-bold mb-2">Employee Dashboard</h2>
         <p className="text-red-100">
           Chào mừng trở lại, {user.full_name}! Quản lý hồ sơ và cập nhật thông tin của bạn.
         </p>

@@ -7,6 +7,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { isPM } from '@/services/auth';
 import PMDashboard from '@/components/dashboard/pm/PM';
 import RoleSwitcherNavbar from '@/components/RoleSwitcherNavbar';
+import LoadingSpinner from '@/components/LoadingSpinner';
 
 export default function PMDashboardPage() {
   const { user, loading } = useAuth();
@@ -29,7 +30,7 @@ export default function PMDashboardPage() {
   if (loading) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center">
-        <p className="text-lg">Loading Project Manager dashboard...</p>
+        <LoadingSpinner size="lg"/>
       </div>
     );
   }

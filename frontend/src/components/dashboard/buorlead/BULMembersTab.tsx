@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import Image from 'next/image';
 import { User } from '@/services/auth';
 import { getUsersInDepartment } from '@/services/user';
 import { getUserCVByUserId, CV, createCVUpdateRequest } from '@/services/cv';
@@ -31,11 +32,7 @@ export default function BULMembersTab({ user }: BULMembersTabProps) {
   const { addNotification } = useNotifications();
 
   // Load members on component mount and when user changes
-  useEffect(() => {
-    loadMembers();
-  }, [user]);
-
-  const loadMembers = async () => {
+  const loadMembers = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -66,7 +63,11 @@ export default function BULMembersTab({ user }: BULMembersTabProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    loadMembers();
+  }, [loadMembers]);
 
   const loadMembersCVStatuses = async (membersData: User[]) => {
     try {
@@ -79,7 +80,7 @@ export default function BULMembersTab({ user }: BULMembersTabProps) {
           try {
             const memberCV = await getUserCVByUserId(member.id);
             statusMap[member.id] = memberCV.status || 'Chưa cập nhật';
-          } catch (error) {
+          } catch {
             // If CV not found, set status as 'Chưa cập nhật'
             statusMap[member.id] = 'Chưa cập nhật';
             console.log(`No CV found for member ${member.id}, setting status to 'Chưa cập nhật'`);
@@ -130,6 +131,53 @@ export default function BULMembersTab({ user }: BULMembersTabProps) {
     }
   };
 
+  // Helper function to check if CV is empty/uninitialized
+  const isCVEmpty = (cv: CV | null): boolean => {
+    if (!cv || !cv.details) return true;
+
+    const details = cv.details;
+
+    // Check if all main fields are empty or null
+    const mainFieldsEmpty = !details.full_name?.trim() &&
+                           !details.job_title?.trim() &&
+                           !details.summary?.trim() &&
+                           !details.email?.trim() &&
+                           !details.phone?.trim() &&
+                           !details.address?.trim() &&
+                           !details.birthday &&
+                           !details.gender?.trim() &&
+                           !details.portrait_path?.trim();
+
+    // Check if education array is empty or all entries are empty
+    const educationEmpty = !details.education ||
+                          details.education.length === 0 ||
+                          details.education.every(edu =>
+                            !edu.organization?.trim() &&
+                            !edu.degree?.trim() &&
+                            !edu.major?.trim() &&
+                            !edu.graduation_year
+                          );
+
+    // Check if courses array is empty or all entries are empty
+    const coursesEmpty = !details.courses ||
+                        details.courses.length === 0 ||
+                        details.courses.every(course =>
+                          !course.course_name?.trim() &&
+                          !course.organization?.trim() &&
+                          !course.finish_date?.trim()
+                        );
+
+    // Check if skills array is empty or all entries are empty
+    const skillsEmpty = !details.skills ||
+                       details.skills.length === 0 ||
+                       details.skills.every(skill =>
+                         !skill.skill_name?.trim() &&
+                         !skill.description?.trim()
+                       );
+
+    return mainFieldsEmpty && educationEmpty && coursesEmpty && skillsEmpty;
+  };
+
   const handleRequestCVUpdate = (member: User) => {
     setSelectedMemberForUpdate(member);
     setUpdateMessage('');
@@ -157,8 +205,10 @@ export default function BULMembersTab({ user }: BULMembersTabProps) {
       console.log(`Requesting CV update for CV ID: ${memberCV.id} with message:`, updateMessage);
       const result = await createCVUpdateRequest(memberCV.id, updateMessage);
 
-      // Use appropriate toast based on message type
-      if (result.message === "CV đang trong trạng thái chờ cập nhật") {
+      // Use appropriate toast based on status and message type
+      if (result.status === 'error') {
+        toast.error(result.message);
+      } else if (result.message === "CV đang trong trạng thái chờ cập nhật") {
         toast.warning(result.message);
       } else {
         toast.success(result.message);
@@ -472,89 +522,211 @@ export default function BULMembersTab({ user }: BULMembersTabProps) {
 
             {/* CV Display Section */}
             {selectedMemberCV && !loadingCV && !cvError && (
-              <div className="bg-white rounded-lg shadow-md p-6">
-                <div className="max-w-2xl mx-auto p-6 bg-white">
-                    {/* Header */}
-                    <div className="mb-10">
-                      <div className="text-left text-sm text-gray-500 mb-6">SƠ YẾU LÝ LỊCH</div>
-
-                      <div className="grid grid-cols-3 gap-6">
-                        {/* Profile Image - First 1/3 */}
-                        <div className="col-span-1">
-                          {selectedMemberCV.details?.anh_chan_dung ? (
-                            <img
-                              src={selectedMemberCV.details.anh_chan_dung}
-                              alt="Profile"
-                              className="w-24 h-32 object-cover border-2 border-gray-300"
-                            />
-                          ) : (
-                            <div className="w-24 h-32 border-2 border-gray-300 flex items-center justify-center text-gray-500 text-xs">
-                              Ảnh chân<br />dung
-                            </div>
-                          )}
+              <div className="max-w-4xl mx-auto bg-white shadow-2xl border border-gray-200">
+                {/* CV Header Section */}
+                <div className="bg-white border-b border-red-100 px-8 pt-6 pb-4">
+                  {/* Last Updated Information */}
+                  {selectedMemberCV.updater_name && selectedMemberCV.last_updated_at && (
+                    <div className="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg">
+                      <div className="flex items-center mb-2">
+                        <span className="text-sm font-semibold text-red-700">Thông tin cập nhật</span>
+                      </div>
+                      <div className="text-sm text-gray-700 space-y-1">
+                        <div>
+                          <span className="font-medium">Cập nhật bởi:</span> {selectedMemberCV.updater_name} - {selectedMemberCV.updater_employee_code}
                         </div>
-
-                        {/* Name and Title - Remaining 2/3 (Center aligned) */}
-                        <div className="col-span-2 flex flex-col justify-center items-center">
-                          <div className="bg-yellow-300 px-4 py-2 mb-3">
-                            <h1 className="text-xl font-bold text-black">
-                              {selectedMemberCV.details?.ho_ten || selectedMember.full_name}
-                            </h1>
-                          </div>
-                          <div className="text-red-500 text-base font-medium">
-                            {selectedMemberCV.details?.chuc_danh || selectedMember.roles?.map(role => role.name).join(', ') || 'Chức danh'}
-                          </div>
+                        <div>
+                          <span className="font-medium">Thời gian:</span> {new Date(selectedMemberCV.last_updated_at).toLocaleString('vi-VN')}
                         </div>
                       </div>
                     </div>
+                  )}
 
-                    {/* TÓM TẮT Section */}
-                    <div className="mb-10">
-                      <h2 className="text-lg font-bold text-black mb-4 border-b border-gray-400 pb-2">TÓM TẮT</h2>
-                      <div className="bg-yellow-300 inline-block px-3 py-2 text-sm font-medium text-black whitespace-pre-line">
-                        {selectedMemberCV.details?.tom_tat || `Tóm tắt kinh nghiệm và kỹ năng chuyên môn của ${selectedMember.full_name}`}
+                  {/* Status Badge */}
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-medium text-gray-600">Trạng thái:</span>
+                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border ${
+                      selectedMemberCV.status === 'Đã cập nhật'
+                        ? 'bg-green-50 text-green-700 border-green-200'
+                        : 'bg-yellow-50 text-yellow-700 border-yellow-200'
+                    }`}>
+                      <div className={`w-2 h-2 rounded-full mr-2 ${
+                        selectedMemberCV.status === 'Đã cập nhật' ? 'bg-green-500' : 'bg-yellow-500'
+                      }`}></div>
+                      {selectedMemberCV.status}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Check if CV is empty and show appropriate message */}
+                {isCVEmpty(selectedMemberCV) ? (
+                  <div className="p-8 text-center">
+                    <div className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg p-12">
+                      <div className="text-gray-400 mb-4">
+                        <svg className="mx-auto h-16 w-16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
                       </div>
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">Chưa khởi tạo CV</h3>
+                      <p className="text-gray-500">
+                        CV của {selectedMember.full_name} chưa có thông tin. Nhân viên cần cập nhật thông tin để hoàn thiện CV.
+                      </p>
                     </div>
+                  </div>
+                ) : (
+                  <>
+                    {/* Header with Red Accent */}
+                    <div className="bg-gradient-to-r from-red-600 to-red-700 p-8 text-white">
+                  <div className="text-center text-2xl font-bold mb-6 tracking-wider">
+                    SƠ YẾU LÝ LỊCH
+                  </div>
 
-                    {/* THÔNG TIN CHUNG Section */}
-                    <div className="mb-10">
-                      <h2 className="text-lg font-bold text-black mb-4 border-b border-gray-400 pb-2">THÔNG TIN CHUNG</h2>
-
-                      <div className="grid grid-cols-2 gap-12 mb-6">
-                        <div>
-                          <h3 className="text-sm font-semibold text-black mb-3">Thông tin cá nhân</h3>
-                          <div className="bg-yellow-300 inline-block px-3 py-2 text-sm font-medium text-black whitespace-pre-line">
-                            {selectedMemberCV.details?.thong_tin_ca_nhan || `Email: ${selectedMember.email}\nMã NV: ${selectedMember.employee_code}\nPhòng ban: ${selectedMember.department?.name || 'Chưa có phòng ban'}`}
-                          </div>
-                        </div>
-                        <div>
-                          <h3 className="text-sm font-semibold text-black mb-3">Đào tạo</h3>
-                          <div className="bg-yellow-300 inline-block px-3 py-2 text-sm font-medium text-black whitespace-pre-line">
-                            {selectedMemberCV.details?.thong_tin_dao_tao || 'Thông tin về quá trình đào tạo và học vấn'}
-                          </div>
-                        </div>
-                      </div>
-
-                      {selectedMemberCV.details?.thong_tin_khoa_hoc && (
-                        <div className="mb-4">
-                          <div className="text-sm text-black mb-2">Thông tin khóa học đã tham gia:</div>
-                          <div className="bg-yellow-300 inline-block px-3 py-2 text-sm font-medium text-black whitespace-pre-line">
-                            {selectedMemberCV.details.thong_tin_khoa_hoc}
-                          </div>
+                  <div className="grid grid-cols-3 gap-6">
+                    {/* Profile Image - First 1/3 */}
+                    <div className="col-span-1">
+                      {selectedMemberCV.details?.portrait_path ? (
+                        <Image
+                          src={selectedMemberCV.details.portrait_path}
+                          alt="Profile photo"
+                          width={96}
+                          height={128}
+                          className="w-24 h-32 object-cover border-4 border-white rounded shadow-lg"
+                        />
+                      ) : (
+                        <div className="w-24 h-32 border-4 border-white border-dashed rounded flex items-center justify-center text-white text-xs font-medium bg-red-500/20">
+                          Ảnh chân<br />dung
                         </div>
                       )}
                     </div>
 
-                    {/* KỸ NĂNG Section */}
-                    <div className="mb-8">
-                      <h2 className="text-lg font-bold text-black mb-4 border-b border-gray-400 pb-2">KỸ NĂNG</h2>
-                      <div className="bg-yellow-300 inline-block px-3 py-2 text-sm font-medium text-black whitespace-pre-line">
-                        {selectedMemberCV.details?.thong_tin_ki_nang || `Kỹ năng chuyên môn và kỹ năng mềm của ${selectedMember.full_name}`}
+                    {/* Name and Title - Remaining 2/3 (Center aligned) */}
+                    <div className="col-span-2 flex flex-col justify-center items-center">
+                      <div className="bg-white text-red-700 px-4 py-2 mb-3 rounded shadow-lg">
+                        <h1 className="text-xl font-bold">{selectedMemberCV.details?.full_name || selectedMember.full_name}</h1>
+                      </div>
+                      <div className="text-red-100 text-base font-medium">{selectedMemberCV.details?.job_title || selectedMember.roles?.map(role => role.name).join(', ') || 'Chức danh'}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-4">
+                  {selectedMemberCV.details && (
+                    <>
+                      {/* Summary Section */}
+                      <div className="mb-10">
+                        <h2 className="text-xl font-bold text-red-700 mb-4 flex items-center">
+                          <div className="w-1 h-6 bg-red-600 mr-3"></div>
+                          TÓM TẮT
+                        </h2>
+                        <div className="bg-red-50 border-l-4 border-red-600 p-4 rounded-r-lg">
+                          <p className="text-gray-700 leading-relaxed whitespace-pre-line">
+                            {selectedMemberCV.details.summary}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* General Information Section */}
+                      <div className="mb-10">
+                        <h2 className="text-xl font-bold text-red-700 mb-6 flex items-center">
+                          <div className="w-1 h-6 bg-red-600 mr-3"></div>
+                          THÔNG TIN CHUNG
+                        </h2>
+
+                        <div className="grid grid-cols-2 gap-12 mb-6">
+                          <div>
+                            <h3 className="text-sm font-semibold text-black mb-3">Thông tin cá nhân</h3>
+                            <div className="bg-red-50 border-l-4 border-red-600 px-3 py-2 text-sm text-black">
+                              <div><span className="font-bold">Họ và tên:</span> {selectedMemberCV.details.full_name || selectedMember.full_name}</div>
+                              {selectedMemberCV.details.email && <div><span className="font-bold">Email:</span> {selectedMemberCV.details.email}</div>}
+                              {selectedMemberCV.details.phone && <div><span className="font-bold">SĐT:</span> {selectedMemberCV.details.phone}</div>}
+                              {selectedMemberCV.details.birthday && <div><span className="font-bold">Ngày sinh:</span> {new Date(selectedMemberCV.details.birthday).toLocaleDateString('vi-VN')}</div>}
+                              {selectedMemberCV.details.gender && <div><span className="font-bold">Giới tính:</span> {selectedMemberCV.details.gender}</div>}
+                              {selectedMemberCV.details.address && <div><span className="font-bold">Địa chỉ:</span> {selectedMemberCV.details.address}</div>}
+                              {!selectedMemberCV.details.email && !selectedMemberCV.details.phone && (
+                                <div><span className="font-bold">Email:</span> {selectedMember.email}<br /><span className="font-bold">Mã NV:</span> {selectedMember.employee_code}<br /><span className="font-bold">Phòng ban:</span> {selectedMember.department?.name || 'Chưa có phòng ban'}</div>
+                              )}
+                            </div>
+                          </div>
+                          <div>
+                            <h3 className="text-sm font-semibold text-black mb-3">Đào tạo</h3>
+                            {selectedMemberCV.details.education && selectedMemberCV.details.education.length > 0 ? (
+                              selectedMemberCV.details.education.map((edu, index) => (
+                                <div key={index} className="bg-red-50 border-l-4 border-red-600 px-3 py-2 text-sm text-black mb-3">
+                                  <div className="font-bold">{edu.organization}</div>
+                                  {edu.degree && <div>{edu.degree}</div>}
+                                  {edu.major && <div><span className="font-bold">Chuyên ngành:</span> {edu.major}</div>}
+                                  {edu.graduation_year && <div><span className="font-bold">Năm tốt nghiệp:</span> {edu.graduation_year}</div>}
+                                </div>
+                              ))
+                            ) : (
+                              <div className="bg-red-50 border-l-4 border-red-600 px-3 py-2 text-sm text-black">
+                                
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Courses */}
+                        {selectedMemberCV.details.courses && selectedMemberCV.details.courses.length > 0 && (
+                          <div className="mt-8">
+                            <h3 className="text-lg font-semibold text-red-600 mb-4">
+                              Khóa học đã tham gia
+                            </h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              {selectedMemberCV.details.courses.map((course, index) => (
+                                <div key={index} className="bg-red-50 border border-red-200 p-4 rounded-lg">
+                                  <div className="font-bold text-red-700">{course.course_name}</div>
+                                  {course.organization && (
+                                    <div className="text-gray-600"><span className="font-bold">Tổ chức:</span> {course.organization}</div>
+                                  )}
+                                  {course.finish_date && (
+                                    <div className="text-gray-600">
+                                      <span className="font-bold">Hoàn thành:</span> {new Date(course.finish_date).toLocaleDateString('vi-VN')}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Skills Section */}
+                      <div className="mb-8">
+                        <h2 className="text-xl font-bold text-red-700 mb-6 flex items-center">
+                          <div className="w-1 h-6 bg-red-600 mr-3"></div>
+                          KỸ NĂNG
+                        </h2>
+                        <div className="space-y-3">
+                          {selectedMemberCV.details.skills && selectedMemberCV.details.skills.length > 0 ? (
+                            selectedMemberCV.details.skills.map((skill, index) => (
+                              <div key={index} className="bg-gradient-to-r from-red-50 to-red-100 border border-red-200 p-4 rounded-lg hover:shadow-md transition-shadow">
+                                <div className="text-sm text-red-700">
+                                  <span className="font-bold">{skill.skill_name}</span>
+                                  {skill.description && (
+                                    <span className="text-gray-600">: {skill.description}</span>
+                                  )}
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="text-gray-500 italic text-center py-8">
+                              
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                    {/* Footer */}
+                    <div className="bg-red-600 p-4 text-center">
+                      <div className="text-white text-sm">
                       </div>
                     </div>
-
-
-                </div>
+                  </>
+                )}
               </div>
             )}
           </div>

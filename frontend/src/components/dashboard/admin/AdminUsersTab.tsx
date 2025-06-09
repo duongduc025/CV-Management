@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import Image from 'next/image';
 import { User, getDepartments, getRoles, type Department, type Role } from '@/services/auth';
-import { getUsers, deleteUser, updateUser } from '@/services/user';
-import { getUserCVByUserId, CV, createCVUpdateRequest } from '@/services/cv';
+import { getUsers, getUsersPaginated, deleteUser, updateUser, type PaginatedUsersResponse } from '@/services/user';
+import { getUserCVByUserId, CV, createCVUpdateRequest, deleteCVByUserId } from '@/services/cv';
 import { toast } from 'sonner';
 import { Eye, Edit, MessageSquare, Trash2 } from 'lucide-react';
 
@@ -17,11 +18,7 @@ interface UserFormData {
   selectedRoles: string[];
 }
 
-interface AdminUsersTabProps {
-  user: User;
-}
-
-export default function AdminUsersTab({ user }: AdminUsersTabProps) {
+export default function AdminUsersTab() {
   const [users, setUsers] = useState<User[]>([]);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [selectedUserCV, setSelectedUserCV] = useState<CV | null>(null);
@@ -32,6 +29,7 @@ export default function AdminUsersTab({ user }: AdminUsersTabProps) {
   const [error, setError] = useState<string | null>(null);
   const [cvError, setCvError] = useState<string | null>(null);
   const [requestingUpdate, setRequestingUpdate] = useState(false);
+  const [deletingCV, setDeletingCV] = useState(false);
   const [showCVPanel, setShowCVPanel] = useState(false);
   const [showMessageDialog, setShowMessageDialog] = useState(false);
   const [updateMessage, setUpdateMessage] = useState('');
@@ -39,6 +37,14 @@ export default function AdminUsersTab({ user }: AdminUsersTabProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('');
   const [projectFilter, setProjectFilter] = useState('');
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalUsers, setTotalUsers] = useState(0);
+  const [hasNext, setHasNext] = useState(false);
+  const [hasPrev, setHasPrev] = useState(false);
+  const [usePagination, setUsePagination] = useState(true); // Toggle between paginated and full list
 
   // Registration modal state
   const [showRegisterModal, setShowRegisterModal] = useState(false);
@@ -70,29 +76,71 @@ export default function AdminUsersTab({ user }: AdminUsersTabProps) {
   const [editError, setEditError] = useState('');
 
   // Load users on component mount
-  useEffect(() => {
-    loadUsers();
-  }, []);
-
-  const loadUsers = async () => {
+  const loadUsers = useCallback(async (page: number = 1) => {
     try {
       setLoading(true);
       setError(null);
 
-      console.log('Loading all users for admin...');
-      const usersData = await getUsers();
-      setUsers(usersData);
-      console.log(`Loaded ${usersData.length} users`);
+      if (usePagination) {
+        console.log(`Loading paginated users for admin (page ${page})...`);
+        const paginatedData: PaginatedUsersResponse = await getUsersPaginated(page);
+        setUsers(paginatedData.users);
+        setCurrentPage(paginatedData.current_page);
+        setTotalPages(paginatedData.total_pages);
+        setTotalUsers(paginatedData.total_users);
+        setHasNext(paginatedData.has_next);
+        setHasPrev(paginatedData.has_prev);
+        console.log(`Loaded ${paginatedData.users.length} users (page ${page}/${paginatedData.total_pages}, total: ${paginatedData.total_users})`);
 
-      // Load CV statuses for all users
-      await loadUsersCVStatuses(usersData);
+        // Load CV statuses for current page users
+        await loadUsersCVStatuses(paginatedData.users);
+      } else {
+        console.log('Loading all users for admin...');
+        const usersData = await getUsers();
+        setUsers(usersData);
+        console.log(`Loaded ${usersData.length} users`);
+
+        // Load CV statuses for all users
+        await loadUsersCVStatuses(usersData);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Không thể tải danh sách người dùng');
       console.error('Error loading users:', err);
     } finally {
       setLoading(false);
     }
+  }, [usePagination]);
+
+  useEffect(() => {
+    loadUsers(1);
+  }, [loadUsers]);
+
+  // Pagination functions
+  const handlePageChange = (page: number) => {
+    if (page >= 1 && page <= totalPages) {
+      loadUsers(page);
+    }
   };
+
+  const handleNextPage = () => {
+    if (hasNext) {
+      handlePageChange(currentPage + 1);
+    }
+  };
+
+  const handlePrevPage = () => {
+    if (hasPrev) {
+      handlePageChange(currentPage - 1);
+    }
+  };
+
+  const togglePaginationMode = () => {
+    setUsePagination(!usePagination);
+    setCurrentPage(1);
+    loadUsers(1);
+  };
+
+
 
   const loadUsersCVStatuses = async (usersData: User[]) => {
     try {
@@ -105,7 +153,7 @@ export default function AdminUsersTab({ user }: AdminUsersTabProps) {
           try {
             const userCV = await getUserCVByUserId(user.id);
             statusMap[user.id] = userCV.status || 'Chưa cập nhật';
-          } catch (error) {
+          } catch {
             // If CV not found, set status as 'Chưa cập nhật'
             statusMap[user.id] = 'Chưa cập nhật';
             console.log(`No CV found for user ${user.id}, setting status to 'Chưa cập nhật'`);
@@ -156,6 +204,58 @@ export default function AdminUsersTab({ user }: AdminUsersTabProps) {
     }
   };
 
+  // Helper function to check if CV is empty/uninitialized
+  const isCVEmpty = (cv: CV | null): boolean => {
+    if (!cv || !cv.details) return true;
+
+    const details = cv.details;
+
+    // Check if all main fields are empty or null
+    const mainFieldsEmpty = !details.full_name?.trim() &&
+                           !details.job_title?.trim() &&
+                           !details.summary?.trim() &&
+                           !details.email?.trim() &&
+                           !details.phone?.trim() &&
+                           !details.address?.trim() &&
+                           !details.birthday &&
+                           !details.gender?.trim() &&
+                           !details.portrait_path?.trim();
+
+    // Check if education array is empty or all entries are empty
+    const educationEmpty = !details.education ||
+                          details.education.length === 0 ||
+                          details.education.every(edu =>
+                            !edu.organization?.trim() &&
+                            !edu.degree?.trim() &&
+                            !edu.major?.trim() &&
+                            !edu.graduation_year
+                          );
+
+    // Check if courses array is empty or all entries are empty
+    const coursesEmpty = !details.courses ||
+                        details.courses.length === 0 ||
+                        details.courses.every(course =>
+                          !course.course_name?.trim() &&
+                          !course.organization?.trim() &&
+                          !course.finish_date?.trim()
+                        );
+
+    // Check if skills array is empty or all entries are empty
+    const skillsEmpty = !details.skills ||
+                       details.skills.length === 0 ||
+                       details.skills.every(skill =>
+                         !skill.skill_name?.trim() &&
+                         !skill.description?.trim()
+                       );
+
+    return mainFieldsEmpty && educationEmpty && coursesEmpty && skillsEmpty;
+  };
+
+  // Helper function to check if CV exists and has data (for enabling delete button)
+  const canDeleteCV = (): boolean => {
+    return selectedUserCV !== null && !isCVEmpty(selectedUserCV);
+  };
+
   const handleRequestCVUpdate = (user: User) => {
     setSelectedUserForUpdate(user);
     setUpdateMessage('');
@@ -179,8 +279,10 @@ export default function AdminUsersTab({ user }: AdminUsersTabProps) {
       console.log(`Requesting CV update for CV ID: ${userCV.id} with message:`, updateMessage);
       const result = await createCVUpdateRequest(userCV.id, updateMessage);
 
-      // Use appropriate toast based on message type
-      if (result.message === "CV đang trong trạng thái chờ cập nhật") {
+      // Use appropriate toast based on status and message type
+      if (result.status === 'error') {
+        toast.error(result.message);
+      } else if (result.message === "CV đang trong trạng thái chờ cập nhật") {
         toast.warning(result.message);
       } else {
         toast.success(result.message);
@@ -207,6 +309,47 @@ export default function AdminUsersTab({ user }: AdminUsersTabProps) {
     setShowMessageDialog(false);
     setSelectedUserForUpdate(null);
     setUpdateMessage('');
+  };
+
+  const handleDeleteCV = async () => {
+    if (!selectedUser) return;
+
+    try {
+      setDeletingCV(true);
+      console.log(`Deleting CV for user: ${selectedUser.id}`);
+
+      // Call the deleteCVByUserId API to clear all CV data
+      const result = await deleteCVByUserId(selectedUser.id);
+
+      toast.success(result.message);
+
+      // Refresh the CV data to show the cleared state
+      if (selectedUser.id) {
+        try {
+          const userCV = await getUserCVByUserId(selectedUser.id);
+          setSelectedUserCV(userCV);
+
+          // Update CV status in the users list
+          setUsersCVStatus(prev => ({
+            ...prev,
+            [selectedUser.id]: userCV.status || 'Chưa cập nhật'
+          }));
+        } catch (error) {
+          console.error('Failed to reload CV after deletion:', error);
+          // Set CV to null if there's an error loading it
+          setSelectedUserCV(null);
+          setUsersCVStatus(prev => ({
+            ...prev,
+            [selectedUser.id]: 'Chưa cập nhật'
+          }));
+        }
+      }
+    } catch (error) {
+      console.error('Failed to delete CV:', error);
+      toast.error(error instanceof Error ? error.message : 'Không thể xóa CV');
+    } finally {
+      setDeletingCV(false);
+    }
   };
 
   // Delete user functions
@@ -546,7 +689,7 @@ export default function AdminUsersTab({ user }: AdminUsersTabProps) {
         setShowRegisterModal(false);
 
         // Reload users list
-        loadUsers();
+        loadUsers(currentPage);
       }
     } catch (err) {
       setRegisterError(err instanceof Error ? err.message : 'Đăng ký thất bại');
@@ -627,15 +770,34 @@ export default function AdminUsersTab({ user }: AdminUsersTabProps) {
                 Quản lý tất cả người dùng trong hệ thống
               </p>
             </div>
-            <button
-              onClick={handleOpenRegisterModal}
-              className="inline-flex items-center px-4 py-2 bg-[#E60012] text-white rounded-lg hover:bg-[#cc0010] transition-all duration-200 text-sm font-medium shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
-            >
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-              </svg>
-              Đăng ký người dùng
-            </button>
+            <div className="flex items-center space-x-3">
+              {/* Pagination Toggle */}
+              <button
+                onClick={togglePaginationMode}
+                className={`inline-flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  usePagination
+                    ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+                title={usePagination ? 'Chuyển sang xem tất cả' : 'Chuyển sang xem theo trang'}
+              >
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                </svg>
+                {usePagination ? 'Phân trang' : 'Tất cả'}
+              </button>
+
+              {/* Register Button */}
+              <button
+                onClick={handleOpenRegisterModal}
+                className="inline-flex items-center px-4 py-2 bg-[#E60012] text-white rounded-lg hover:bg-[#cc0010] transition-all duration-200 text-sm font-medium shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
+              >
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                Đăng ký người dùng
+              </button>
+            </div>
           </div>
 
           {/* Search and Filters */}
@@ -688,7 +850,7 @@ export default function AdminUsersTab({ user }: AdminUsersTabProps) {
             <div className="bg-red-50 border border-red-200 rounded-md p-4">
               <p className="text-red-800">{error}</p>
               <button
-                onClick={loadUsers}
+                onClick={() => loadUsers(1)}
                 className="mt-2 px-3 py-1 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 transition-colors"
               >
                 Thử lại
@@ -844,6 +1006,102 @@ export default function AdminUsersTab({ user }: AdminUsersTabProps) {
               </div>
             )}
           </div>
+
+          {/* Pagination Controls */}
+          {usePagination && !loading && users.length > 0 && (
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <div className="flex items-center justify-between">
+                {/* Pagination Info */}
+                <div className="flex items-center space-x-4">
+                  <span className="text-sm text-gray-700">
+                   Tổng: {totalUsers} người dùng
+                  </span>
+                </div>
+
+                {/* Pagination Buttons */}
+                <div className="flex items-center space-x-2">
+                  {/* Previous Button */}
+                  <button
+                    onClick={handlePrevPage}
+                    disabled={!hasPrev}
+                    className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                      hasPrev
+                        ? 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                        : 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed'
+                    }`}
+                  >
+                    Trước
+                  </button>
+
+                  {/* Page Numbers */}
+                  <div className="flex items-center space-x-1">
+                    {/* First page */}
+                    {currentPage > 3 && (
+                      <>
+                        <button
+                          onClick={() => handlePageChange(1)}
+                          className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                        >
+                          1
+                        </button>
+                        {currentPage > 4 && (
+                          <span className="px-2 py-2 text-sm text-gray-500">...</span>
+                        )}
+                      </>
+                    )}
+
+                    {/* Current page and neighbors */}
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      const pageNum = Math.max(1, Math.min(totalPages - 4, currentPage - 2)) + i;
+                      if (pageNum > totalPages) return null;
+
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => handlePageChange(pageNum)}
+                          className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                            pageNum === currentPage
+                              ? 'bg-[#E60012] text-white border border-[#E60012]'
+                              : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                          }`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+
+                    {/* Last page */}
+                    {currentPage < totalPages - 2 && (
+                      <>
+                        {currentPage < totalPages - 3 && (
+                          <span className="px-2 py-2 text-sm text-gray-500">...</span>
+                        )}
+                        <button
+                          onClick={() => handlePageChange(totalPages)}
+                          className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                        >
+                          {totalPages}
+                        </button>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Next Button */}
+                  <button
+                    onClick={handleNextPage}
+                    disabled={!hasNext}
+                    className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                      hasNext
+                        ? 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                        : 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed'
+                    }`}
+                  >
+                    Tiếp
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -923,6 +1181,27 @@ export default function AdminUsersTab({ user }: AdminUsersTabProps) {
                       </>
                     )}
                   </button>
+
+                  {/* Delete CV Button */}
+                  <button
+                    onClick={handleDeleteCV}
+                    disabled={deletingCV || !canDeleteCV()}
+                    className="inline-flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-all duration-200 text-sm font-medium shadow-md hover:shadow-lg transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-md"
+                  >
+                    {deletingCV ? (
+                      <div className="flex items-center">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Đang xóa...
+                      </div>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1-1H8a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                        Xóa CV
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
             </div>
@@ -998,87 +1277,220 @@ export default function AdminUsersTab({ user }: AdminUsersTabProps) {
 
             {/* CV Display Section */}
             {selectedUserCV && !loadingCV && !cvError && (
-              <div className="bg-white rounded-lg shadow-md p-6">
-                <div className="max-w-2xl mx-auto p-6 bg-white">
-                  {/* Header */}
-                  <div className="mb-10">
-                    <div className="text-left text-sm text-gray-500 mb-6">SƠ YẾU LÝ LỊCH</div>
+              <div className="max-w-4xl mx-auto bg-white shadow-2xl border border-gray-200">
+                {/* CV Header Section */}
+                <div className="bg-white border-b border-red-100 px-8 pt-6 pb-4">
+                  {/* Last Updated Information */}
+                  {selectedUserCV.updater_name && selectedUserCV.last_updated_at && (
+                    <div className="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg">
+                      <div className="flex items-center mb-2">
+                        <span className="text-sm font-semibold text-red-700">Thông tin cập nhật</span>
+                      </div>
+                      <div className="text-sm text-gray-700 space-y-1">
+                        <div>
+                          <span className="font-medium">Cập nhật bởi:</span> {selectedUserCV.updater_name} - {selectedUserCV.updater_employee_code}
+                        </div>
+                        <div>
+                          <span className="font-medium">Thời gian:</span> {new Date(selectedUserCV.last_updated_at).toLocaleString('vi-VN')}
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
-                    <div className="grid grid-cols-3 gap-6">
-                      {/* Profile Image - First 1/3 */}
-                      <div className="col-span-1">
-                        {selectedUserCV.details?.anh_chan_dung ? (
-                          <img
-                            src={selectedUserCV.details.anh_chan_dung}
-                            alt="Profile"
-                            className="w-24 h-32 object-cover border-2 border-gray-300"
-                          />
-                        ) : (
-                          <div className="w-24 h-32 border-2 border-gray-300 flex items-center justify-center text-gray-500 text-xs">
-                            Ảnh chân<br />dung
+                  {/* Status Badge */}
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-medium text-gray-600">Trạng thái:</span>
+                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border ${
+                      selectedUserCV.status === 'Đã cập nhật'
+                        ? 'bg-green-50 text-green-700 border-green-200'
+                        : 'bg-yellow-50 text-yellow-700 border-yellow-200'
+                    }`}>
+                      <div className={`w-2 h-2 rounded-full mr-2 ${
+                        selectedUserCV.status === 'Đã cập nhật' ? 'bg-green-500' : 'bg-yellow-500'
+                      }`}></div>
+                      {selectedUserCV.status}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Check if CV is empty and show appropriate message */}
+                {isCVEmpty(selectedUserCV) ? (
+                  <div className="p-8 text-center">
+                    <div className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg p-12">
+                      <div className="text-gray-400 mb-4">
+                        <svg className="mx-auto h-16 w-16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                      </div>
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">Chưa khởi tạo CV</h3>
+                      <p className="text-gray-500 mb-6">
+                        CV của {selectedUser.full_name} chưa có thông tin. Vui lòng yêu cầu cập nhật thông tin để hoàn thiện CV.
+                      </p>
+                      <div className="flex gap-3 justify-center">
+                        <button
+                          onClick={() => handleRequestCVUpdate(selectedUser)}
+                          className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md transition-colors"
+                        >
+                          Yêu cầu cập nhật CV
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+
+                {/* Header with Red Accent */}
+                <div className="bg-gradient-to-r from-red-600 to-red-700 p-8 text-white">
+                  <div className="text-center text-2xl font-bold mb-6 tracking-wider">
+                    SƠ YẾU LÝ LỊCH
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-6">
+                    {/* Profile Image - First 1/3 */}
+                    <div className="col-span-1">
+                      {selectedUserCV.details?.portrait_path ? (
+                        <Image
+                          src={selectedUserCV.details.portrait_path}
+                          alt="Profile photo"
+                          width={96}
+                          height={128}
+                          className="w-24 h-32 object-cover border-4 border-white rounded shadow-lg"
+                        />
+                      ) : (
+                        <div className="w-24 h-32 border-4 border-white border-dashed rounded flex items-center justify-center text-white text-xs font-medium bg-red-500/20">
+                          Ảnh chân<br />dung
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Name and Title - Remaining 2/3 (Center aligned) */}
+                    <div className="col-span-2 flex flex-col justify-center items-center">
+                      <div className="bg-white text-red-700 px-4 py-2 mb-3 rounded shadow-lg">
+                        <h1 className="text-xl font-bold">{selectedUserCV.details?.full_name || selectedUser.full_name}</h1>
+                      </div>
+                      <div className="text-red-100 text-base font-medium">{selectedUserCV.details?.job_title || selectedUser.roles?.map(role => role.name).join(', ') || 'Chức danh'}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-4">
+                  {selectedUserCV.details && (
+                    <>
+                      {/* Summary Section */}
+                      <div className="mb-10">
+                        <h2 className="text-xl font-bold text-red-700 mb-4 flex items-center">
+                          <div className="w-1 h-6 bg-red-600 mr-3"></div>
+                          TÓM TẮT
+                        </h2>
+                        <div className="bg-red-50 border-l-4 border-red-600 p-4 rounded-r-lg">
+                          <p className="text-gray-700 leading-relaxed whitespace-pre-line">
+                            {selectedUserCV.details.summary}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* General Information Section */}
+                      <div className="mb-10">
+                        <h2 className="text-xl font-bold text-red-700 mb-6 flex items-center">
+                          <div className="w-1 h-6 bg-red-600 mr-3"></div>
+                          THÔNG TIN CHUNG
+                        </h2>
+
+                        <div className="grid grid-cols-2 gap-12 mb-6">
+                          <div>
+                            <h3 className="text-sm font-semibold text-black mb-3">Thông tin cá nhân</h3>
+                            <div className="bg-red-50 border-l-4 border-red-600 px-3 py-2 text-sm text-black">
+                              <div><span className="font-bold">Họ và tên:</span> {selectedUserCV.details.full_name || selectedUser.full_name}</div>
+                              {selectedUserCV.details.email && <div><span className="font-bold">Email:</span> {selectedUserCV.details.email}</div>}
+                              {selectedUserCV.details.phone && <div><span className="font-bold">SĐT:</span> {selectedUserCV.details.phone}</div>}
+                              {selectedUserCV.details.birthday && <div><span className="font-bold">Ngày sinh:</span> {new Date(selectedUserCV.details.birthday).toLocaleDateString('vi-VN')}</div>}
+                              {selectedUserCV.details.gender && <div><span className="font-bold">Giới tính:</span> {selectedUserCV.details.gender}</div>}
+                              {selectedUserCV.details.address && <div><span className="font-bold">Địa chỉ:</span> {selectedUserCV.details.address}</div>}
+                              {!selectedUserCV.details.email && !selectedUserCV.details.phone && (
+                                <div><span className="font-bold">Email:</span> {selectedUser.email}<br /><span className="font-bold">Mã NV:</span> {selectedUser.employee_code}<br /><span className="font-bold">Phòng ban:</span> {selectedUser.department?.name || 'Chưa có phòng ban'}</div>
+                              )}
+                            </div>
+                          </div>
+                          <div>
+                            <h3 className="text-sm font-semibold text-black mb-3">Đào tạo</h3>
+                            {selectedUserCV.details.education && selectedUserCV.details.education.length > 0 ? (
+                              selectedUserCV.details.education.map((edu, index) => (
+                                <div key={index} className="bg-red-50 border-l-4 border-red-600 px-3 py-2 text-sm text-black mb-3">
+                                  <div className="font-bold">{edu.organization}</div>
+                                  {edu.degree && <div>{edu.degree}</div>}
+                                  {edu.major && <div><span className="font-bold">Chuyên ngành:</span> {edu.major}</div>}
+                                  {edu.graduation_year && <div><span className="font-bold">Năm tốt nghiệp:</span> {edu.graduation_year}</div>}
+                                </div>
+                              ))
+                            ) : (
+                              <div className="bg-red-50 border-l-4 border-red-600 px-3 py-2 text-sm text-black">
+                                
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Courses */}
+                        {selectedUserCV.details.courses && selectedUserCV.details.courses.length > 0 && (
+                          <div className="mt-8">
+                            <h3 className="text-lg font-semibold text-red-600 mb-4">
+                              Khóa học đã tham gia
+                            </h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              {selectedUserCV.details.courses.map((course, index) => (
+                                <div key={index} className="bg-red-50 border border-red-200 p-4 rounded-lg">
+                                  <div className="font-bold text-red-700">{course.course_name}</div>
+                                  {course.organization && (
+                                    <div className="text-gray-600"><span className="font-bold">Tổ chức:</span> {course.organization}</div>
+                                  )}
+                                  {course.finish_date && (
+                                    <div className="text-gray-600">
+                                      <span className="font-bold">Hoàn thành:</span> {new Date(course.finish_date).toLocaleDateString('vi-VN')}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         )}
                       </div>
 
-                      {/* Name and Title - Remaining 2/3 (Center aligned) */}
-                      <div className="col-span-2 flex flex-col justify-center items-center">
-                        <div className="bg-yellow-300 px-4 py-2 mb-3">
-                          <h1 className="text-xl font-bold text-black">
-                            {selectedUserCV.details?.ho_ten || selectedUser.full_name}
-                          </h1>
-                        </div>
-                        <div className="text-red-500 text-base font-medium">
-                          {selectedUserCV.details?.chuc_danh || selectedUser.roles?.map(role => role.name).join(', ') || 'Chức danh'}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* TÓM TẮT Section */}
-                  <div className="mb-10">
-                    <h2 className="text-lg font-bold text-black mb-4 border-b border-gray-400 pb-2">TÓM TẮT</h2>
-                    <div className="bg-yellow-300 inline-block px-3 py-2 text-sm font-medium text-black whitespace-pre-line">
-                      {selectedUserCV.details?.tom_tat || `Tóm tắt kinh nghiệm và kỹ năng chuyên môn của ${selectedUser.full_name}`}
-                    </div>
-                  </div>
-
-                  {/* THÔNG TIN CHUNG Section */}
-                  <div className="mb-10">
-                    <h2 className="text-lg font-bold text-black mb-4 border-b border-gray-400 pb-2">THÔNG TIN CHUNG</h2>
-
-                    <div className="grid grid-cols-2 gap-12 mb-6">
-                      <div>
-                        <h3 className="text-sm font-semibold text-black mb-3">Thông tin cá nhân</h3>
-                        <div className="bg-yellow-300 inline-block px-3 py-2 text-sm font-medium text-black whitespace-pre-line">
-                          {selectedUserCV.details?.thong_tin_ca_nhan || `Email: ${selectedUser.email}\nMã NV: ${selectedUser.employee_code}\nPhòng ban: ${selectedUser.department?.name || 'Chưa có phòng ban'}`}
+                      {/* Skills Section */}
+                      <div className="mb-8">
+                        <h2 className="text-xl font-bold text-red-700 mb-6 flex items-center">
+                          <div className="w-1 h-6 bg-red-600 mr-3"></div>
+                          KỸ NĂNG
+                        </h2>
+                        <div className="space-y-3">
+                          {selectedUserCV.details.skills && selectedUserCV.details.skills.length > 0 ? (
+                            selectedUserCV.details.skills.map((skill, index) => (
+                              <div key={index} className="bg-gradient-to-r from-red-50 to-red-100 border border-red-200 p-4 rounded-lg hover:shadow-md transition-shadow">
+                                <div className="text-sm text-red-700">
+                                  <span className="font-bold">{skill.skill_name}</span>
+                                  {skill.description && (
+                                    <span className="text-gray-600">: {skill.description}</span>
+                                  )}
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="text-gray-500 italic text-center py-8">
+                              
+                            </div>
+                          )}
                         </div>
                       </div>
-                      <div>
-                        <h3 className="text-sm font-semibold text-black mb-3">Đào tạo</h3>
-                        <div className="bg-yellow-300 inline-block px-3 py-2 text-sm font-medium text-black whitespace-pre-line">
-                          {selectedUserCV.details?.thong_tin_dao_tao || 'Thông tin về quá trình đào tạo và học vấn'}
-                        </div>
-                      </div>
-                    </div>
-
-                    {selectedUserCV.details?.thong_tin_khoa_hoc && (
-                      <div className="mb-4">
-                        <div className="text-sm text-black mb-2">Thông tin khóa học đã tham gia:</div>
-                        <div className="bg-yellow-300 inline-block px-3 py-2 text-sm font-medium text-black whitespace-pre-line">
-                          {selectedUserCV.details.thong_tin_khoa_hoc}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* KỸ NĂNG Section */}
-                  <div className="mb-8">
-                    <h2 className="text-lg font-bold text-black mb-4 border-b border-gray-400 pb-2">KỸ NĂNG</h2>
-                    <div className="bg-yellow-300 inline-block px-3 py-2 text-sm font-medium text-black whitespace-pre-line">
-                      {selectedUserCV.details?.thong_tin_ki_nang || `Kỹ năng chuyên môn và kỹ năng mềm của ${selectedUser.full_name}`}
-                    </div>
-                  </div>
+                    </>
+                  )}
                 </div>
+
+                    {/* Footer */}
+                    <div className="bg-red-600 p-4 text-center">
+                      <div className="text-white text-sm">
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -1212,7 +1624,7 @@ export default function AdminUsersTab({ user }: AdminUsersTabProps) {
 
       {/* Edit User Modal */}
       {showEditModal && selectedUserForEdit && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0  bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
             {/* Modal Header */}
             <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">

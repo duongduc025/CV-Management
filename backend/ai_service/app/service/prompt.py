@@ -22,6 +22,7 @@ Thực hiện theo các bước sau để trích xuất và cấu trúc thông t
 3. Xử lý các biến thể:
    - Tính đến các kiểu CV khác nhau, định dạng và thứ tự mục khác nhau.
    - Điều chỉnh quy trình trích xuất để nắm bắt dữ liệu chính xác từ nhiều cách trình bày khác nhau.
+   - Nếu không có thông tin nào cho một mục cụ thể, hãy để trống cho mục đó.
 
 5. Tối ưu đầu ra:
    - Mỗi trường đầu ra đều là một chuỗi (string).

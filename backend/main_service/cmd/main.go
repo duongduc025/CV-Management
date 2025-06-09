@@ -88,10 +88,13 @@ func main() {
 		// User routes with role-based access
 		users := api.Group("/users")
 		{
-			users.GET("", middleware.AdminOnly(), handlers.GetUsers)
+			users.GET("", middleware.RoleMiddleware("Admin", "PM"), handlers.GetUsers)
+			users.GET("/paginated", middleware.AdminOnly(), handlers.GetUsersPaginated)
 			users.GET("/:id", middleware.AdminOrPMOrBUL(), handlers.GetUserByID)
-			users.GET("/department/:department_id", middleware.BULOnly(), handlers.GetUsersInDepartment)
+			users.GET("/department/:department_id", middleware.RoleMiddleware("Admin", "BUL/Lead"), handlers.GetUsersInDepartment) // Admin always has access
 			users.GET("/project/:project_id", middleware.RoleMiddleware("Admin", "PM"), handlers.GetUsersInProject)
+			users.GET("/role/:role", middleware.AdminOnly(), handlers.GetUsersByRole)
+			users.GET("/pm", middleware.AdminOnly(), handlers.GetPMUsers)
 
 			users.POST("", middleware.AdminOnly(), handlers.CreateUser)
 			users.PUT("/:id", middleware.AdminOnly(), handlers.UpdateUser)
@@ -118,6 +121,9 @@ func main() {
 
 			// All authenticated users can create or update their own CV
 			cvs.POST("", handlers.CreateOrUpdateCV)
+
+			// Admin can delete any user's CV by user ID
+			cvs.DELETE("/user/:user_id", middleware.AdminOnly(), handlers.DeleteCV)
 
 			// BUL and PM can view any CV by user ID
 			cvs.GET("/user/:user_id", middleware.AdminOrPMOrBUL(), handlers.GetCVByUserID)
@@ -153,6 +159,12 @@ func main() {
 
 			projects.POST("/:id/members", middleware.RoleMiddleware("Admin", "PM"), handlers.AddProjectMember)
 			projects.DELETE("/:id/members/:userId", middleware.RoleMiddleware("Admin", "PM"), handlers.RemoveProjectMember)
+
+			// Admin-specific project routes
+			adminProjects := projects.Group("/admin")
+			{
+				adminProjects.POST("", middleware.AdminOnly(), handlers.CreateProjectWithPM)
+			}
 		}
 
 		// Upload routes - accessible to all authenticated users

@@ -1,19 +1,14 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { User } from '@/services/auth';
 import { Search, X, Loader2, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { getAllCVUpdateRequestsForAdmin, cancelCVUpdateRequest, AdminCVUpdateRequest } from '@/services/admin';
 
-interface AdminRequestsTabProps {
-  user: User;
-}
-
-export default function AdminRequestsTab({ user }: AdminRequestsTabProps) {
+export default function AdminRequestsTab() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [requests, setRequests] = useState<AdminCVUpdateRequest[]>([]);
+  const [requests, setRequests] = useState<AdminCVUpdateRequest[]>([]); // Khởi tạo là mảng rỗng thay vì undefined
   const [loading, setLoading] = useState(true);
   const [cancellingRequest, setCancellingRequest] = useState<string | null>(null);
 
@@ -23,10 +18,11 @@ export default function AdminRequestsTab({ user }: AdminRequestsTabProps) {
       try {
         setLoading(true);
         const allRequests = await getAllCVUpdateRequestsForAdmin();
-        setRequests(allRequests);
+        setRequests(allRequests || []);
       } catch (error) {
         console.error('Failed to fetch CV update requests:', error);
         toast.error('Không thể tải danh sách yêu cầu cập nhật CV');
+        setRequests([]); // Đặt thành mảng rỗng nếu có lỗi
       } finally {
         setLoading(false);
       }
@@ -80,15 +76,14 @@ export default function AdminRequestsTab({ user }: AdminRequestsTabProps) {
     });
   };
 
-  const filteredRequests = requests.filter(request => {
-    const matchesSearch = (request.employee_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         (request.department || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         (request.requester_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         (request.content || '').toLowerCase().includes(searchTerm.toLowerCase());
+  // Thêm kiểm tra để đảm bảo requests không null trước khi filter
+  const filteredRequests = requests?.filter(request => {
+    const matchesSearch = ((request.employee_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         (request.requester_name || '').toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesStatus = !statusFilter || request.status === statusFilter;
 
     return matchesSearch && matchesStatus;
-  });
+  }) || [];
 
   return (
     <div className="p-6 space-y-6">
@@ -100,24 +95,6 @@ export default function AdminRequestsTab({ user }: AdminRequestsTabProps) {
 
       {/* Content Card */}
       <div className="bg-white rounded-lg shadow-md">
-        {/* Card Header */}
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-gray-900">Danh sách yêu cầu</h3>
-            <button
-              className="flex items-center px-4 py-2 text-white rounded-md hover:opacity-90 transition-opacity"
-              style={{ backgroundColor: '#E60012' }}
-              onClick={() => {
-                // You can implement a modal or navigate to a form
-                alert('Tính năng tạo yêu cầu mới sẽ được triển khai');
-              }}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Tạo yêu cầu mới
-            </button>
-          </div>
-        </div>
-
         {/* Search and Filters */}
         <div className="p-6 border-b border-gray-200">
           <div className="flex flex-col lg:flex-row gap-4">
@@ -217,7 +194,7 @@ export default function AdminRequestsTab({ user }: AdminRequestsTabProps) {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         <div className="flex space-x-2">
-                          {request.status !== 'Đã huỷ' && (
+                          {request.status !== 'Đã huỷ' && request.status !== 'Đã xử lý' && (
                             <button
                               className="p-1 text-red-600 hover:text-red-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                               title="Hủy yêu cầu"

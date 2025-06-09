@@ -1,15 +1,10 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { User } from '@/services/auth';
 import { FileText, MessageSquare, CheckCircle, Target, User as UserIcon, Building } from 'lucide-react';
-import { getAdminDashboardStats, AdminDashboardStats, RecentCVRequest } from '@/services/admin';
+import { getAdminDashboardStats, AdminDashboardStats } from '@/services/admin';
 
-interface AdminHomeTabProps {
-  user: User;
-}
-
-export default function AdminHomeTab({ user }: AdminHomeTabProps) {
+export default function AdminHomeTab() {
   const [stats, setStats] = useState<AdminDashboardStats>({
     totalUsers: 0,
     totalCVs: 0,
@@ -38,18 +33,7 @@ export default function AdminHomeTab({ user }: AdminHomeTabProps) {
     fetchData();
   }, []);
 
-  const getStatusBadgeClass = (status: string) => {
-    switch (status) {
-      case 'Đã cập nhật':
-        return 'bg-green-100 text-green-800';
-      case 'Chưa cập nhật':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'Đã huỷ':
-        return 'bg-gray-100 text-gray-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
+
 
   if (loading) {
     return (
@@ -89,22 +73,6 @@ export default function AdminHomeTab({ user }: AdminHomeTabProps) {
               style={{ background: 'linear-gradient(135deg, #E60012, #c5000f)' }}
             >
               <UserIcon className="h-6 w-6 text-white" />
-            </div>
-          </div>
-        </div>
-
-        {/* Total CVs */}
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-2xl font-bold text-gray-900">{stats.totalCVs}</div>
-              <div className="text-sm text-gray-600">Tổng số CV</div>
-            </div>
-            <div
-              className="p-3 rounded-lg"
-              style={{ background: 'linear-gradient(135deg, #4CAF50, #45a049)' }}
-            >
-              <FileText className="h-6 w-6 text-white" />
             </div>
           </div>
         </div>

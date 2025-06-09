@@ -27,7 +27,7 @@ export interface UploadPDFResponse {
 export interface ParseCVResponse {
   status: string;
   file_path: string;
-  data: any;
+  data: Record<string, unknown>;
 }
 
 // Upload CV profile photo (optimized for CV photos)
@@ -94,7 +94,11 @@ export const parseCVFromFile = async (fileUrl: string): Promise<ParseCVResponse>
 };
 
 // Upload and parse CV in one function
-export const uploadAndParseCV = async (file: File): Promise<any> => {
+export const uploadAndParseCV = async (file: File): Promise<{
+  uploadResult: UploadPDFResponse;
+  parseResult: ParseCVResponse;
+  parsedData: Record<string, unknown>;
+}> => {
   try {
     // Step 1: Upload PDF file
     const uploadResult = await uploadPDFFile(file);
@@ -105,7 +109,7 @@ export const uploadAndParseCV = async (file: File): Promise<any> => {
     return {
       uploadResult,
       parseResult,
-      parsedData: parseResult.data
+      parsedData: (parseResult.data?.data as Record<string, unknown>) || parseResult.data || {}
     };
   } catch (error) {
     console.error('Upload and parse CV error:', error);

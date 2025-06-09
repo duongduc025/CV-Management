@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from 'react';
+import Image from 'next/image';
 import { uploadCVPhoto, validateImageFile } from '@/services/upload';
 import { Button } from '@/components/ui/button';
 
@@ -74,13 +75,15 @@ export default function ImageUpload({
         <div className="relative">
           {previewUrl ? (
             <div className="relative group">
-              <img
+              <Image
                 src={previewUrl}
                 alt="Profile photo"
+                width={128}
+                height={160}
                 className="w-32 h-40 object-cover border-2 border-gray-300 rounded-lg shadow-sm"
               />
               {!disabled && (
-                <div className="absolute inset-0 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-lg flex items-center justify-center">
+                <div className="absolute inset-0  bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-lg flex items-center justify-center">
                   <Button
                     type="button"
                     size="sm"

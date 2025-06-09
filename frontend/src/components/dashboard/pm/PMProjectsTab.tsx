@@ -1,21 +1,18 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { User } from '@/services/auth';
-import { Project, ProjectCreateRequest, createProject, getProjects, addProjectMember, getAllUsers, User as ProjectUser, Member, getProjectMembers, UserWithProjectRole, removeProjectMember, updateProject } from '@/services/project';
+import { Project, ProjectCreateRequest, createProject, getProjects, addProjectMember, getAllUsers, User as ProjectUser, getProjectMembers, UserWithProjectRole, removeProjectMember, updateProject, deleteProject } from '@/services/project';
 import { toast } from 'sonner';
-import { FolderOpen, Plus, Calendar, Clock, CheckCircle, X, UserPlus, Eye, Edit } from 'lucide-react';
+import { FolderOpen, Plus, Calendar, X, UserPlus, Eye, Edit, Users, Trash2 } from 'lucide-react';
 
-interface PMProjectsTabProps {
-  user: User;
-}
-
-export default function PMProjectsTab({ user }: PMProjectsTabProps) {
+export default function PMProjectsTab() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const [formData, setFormData] = useState<ProjectCreateRequest>({
     name: '',
     start_date: '',
@@ -27,9 +24,9 @@ export default function PMProjectsTab({ user }: PMProjectsTabProps) {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [availableUsers, setAvailableUsers] = useState<ProjectUser[]>([]);
   const [selectedUserId, setSelectedUserId] = useState('');
-  const [selectedRole, setSelectedRole] = useState('Developer');
+  const [selectedRole, setSelectedRole] = useState('');
   const [addingMember, setAddingMember] = useState(false);
-  const [projectMembers, setProjectMembers] = useState<{ [key: string]: Member[] }>({});
+
 
   // Members panel states
   const [showMembersPanel, setShowMembersPanel] = useState(false);
@@ -40,6 +37,11 @@ export default function PMProjectsTab({ user }: PMProjectsTabProps) {
   const [removingMember, setRemovingMember] = useState<string | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [selectedMemberForDelete, setSelectedMemberForDelete] = useState<UserWithProjectRole | null>(null);
+
+  // Delete project states
+  const [showDeleteProjectDialog, setShowDeleteProjectDialog] = useState(false);
+  const [selectedProjectForDelete, setSelectedProjectForDelete] = useState<Project | null>(null);
+  const [deletingProject, setDeletingProject] = useState(false);
 
   // Edit project modal states
   const [showEditModal, setShowEditModal] = useState(false);
@@ -74,6 +76,71 @@ export default function PMProjectsTab({ user }: PMProjectsTabProps) {
     }
   };
 
+  // Helper function to get project status based on dates
+  const getProjectStatus = (project: Project) => {
+    const now = new Date();
+    const startDate = project.start_date ? new Date(project.start_date) : null;
+    const endDate = project.end_date ? new Date(project.end_date) : null;
+
+    if (!startDate && !endDate) {
+      return 'Chưa xác định';
+    }
+
+    if (startDate && startDate > now) {
+      return 'Chưa bắt đầu';
+    }
+
+    if (endDate && endDate < now) {
+      return 'Đã kết thúc';
+    }
+
+    if (startDate && startDate <= now && (!endDate || endDate >= now)) {
+      return 'Đang thực hiện';
+    }
+
+    return 'Chưa xác định';
+  };
+
+  // Helper function to render project status badge
+  const renderProjectStatus = (status: string) => {
+    const getStatusStyle = (status: string) => {
+      switch (status) {
+        case 'Đang thực hiện':
+          return 'bg-green-100 text-green-800 border-green-200';
+        case 'Đã kết thúc':
+          return 'bg-gray-100 text-gray-800 border-gray-200';
+        case 'Chưa bắt đầu':
+          return 'bg-blue-100 text-blue-800 border-blue-200';
+        default:
+          return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      }
+    };
+
+    return (
+      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusStyle(status)}`}>
+        {status}
+      </span>
+    );
+  };
+
+  // Helper function to format date for display
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return 'Chưa xác định';
+    return new Date(dateString).toLocaleDateString('vi-VN');
+  };
+
+  // Filter projects based on search and status
+  const filteredProjects = projects.filter(project => {
+    const matchesSearch = project.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const projectStatus = getProjectStatus(project);
+    const matchesStatus = !statusFilter || projectStatus === statusFilter;
+
+    return matchesSearch && matchesStatus;
+  });
+
+  // Get unique statuses for filter
+  const projectStatuses = Array.from(new Set(projects.map(project => getProjectStatus(project))));
+
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name.trim()) {
@@ -107,7 +174,7 @@ export default function PMProjectsTab({ user }: PMProjectsTabProps) {
   const handleOpenAddMemberModal = async (project: Project) => {
     setSelectedProject(project);
     setSelectedUserId('');
-    setSelectedRole('Developer');
+    setSelectedRole('');
     setError(null);
 
     try {
@@ -141,10 +208,13 @@ export default function PMProjectsTab({ user }: PMProjectsTabProps) {
 
       toast.success(`Đã thêm thành viên vào dự án "${selectedProject.name}" thành công`);
 
+      // Refresh projects list to update member count
+      await loadProjects();
+
       // Close modal and reset form
       setShowAddMemberModal(false);
       setSelectedUserId('');
-      setSelectedRole('Developer');
+      setSelectedRole('');
       setSelectedProject(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Không thể thêm thành viên vào dự án');
@@ -206,6 +276,9 @@ export default function PMProjectsTab({ user }: PMProjectsTabProps) {
       // Refresh the members list
       const updatedMembers = await getProjectMembers(selectedProjectForMembers.id);
       setCurrentProjectMembers(updatedMembers);
+
+      // Refresh projects list to update member count
+      await loadProjects();
 
       console.log('Member removed successfully');
       toast.success('Đã xóa thành viên khỏi dự án thành công');
@@ -311,6 +384,46 @@ export default function PMProjectsTab({ user }: PMProjectsTabProps) {
     setEditError(null);
   };
 
+  // Handle delete project
+  const handleDeleteProject = (project: Project) => {
+    if (!project) return;
+    setSelectedProjectForDelete(project);
+    setShowDeleteProjectDialog(true);
+  };
+
+  // Handle confirming project deletion
+  const handleConfirmDeleteProject = async () => {
+    if (!selectedProjectForDelete) return;
+
+    try {
+      setDeletingProject(true);
+      console.log(`Deleting project: ${selectedProjectForDelete.id}`);
+
+      await deleteProject(selectedProjectForDelete.id!);
+
+      toast.success(`Đã xóa dự án "${selectedProjectForDelete.name}" thành công`);
+      setShowDeleteProjectDialog(false);
+
+      // Update state directly instead of reloading entire list
+      setProjects(prevProjects =>
+        prevProjects.filter(p => p.id !== selectedProjectForDelete.id)
+      );
+
+      setSelectedProjectForDelete(null);
+    } catch (error) {
+      console.error('Failed to delete project:', error);
+      toast.error(error instanceof Error ? error.message : 'Không thể xóa dự án');
+    } finally {
+      setDeletingProject(false);
+    }
+  };
+
+  // Handle cancel project deletion
+  const handleCancelDeleteProject = () => {
+    setShowDeleteProjectDialog(false);
+    setSelectedProjectForDelete(null);
+  };
+
   return (
     <div className="h-full w-full bg-gray-50 flex relative">
       {/* Main Content */}
@@ -324,13 +437,45 @@ export default function PMProjectsTab({ user }: PMProjectsTabProps) {
         </div>
         <button
           onClick={() => setShowCreateModal(true)}
-          className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+          className="inline-flex items-center px-4 py-2 bg-[#E60012] text-white rounded-lg hover:bg-[#cc0010] transition-all duration-200 text-sm font-medium shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
         >
           <Plus className="w-4 h-4 mr-2" />
           Tạo dự án mới
         </button>
       </div>
 
+      {/* Search and Filters */}
+      <div className="bg-white rounded-lg shadow-md p-6">
+        <div className="flex flex-col lg:flex-row gap-4">
+          {/* Search Box */}
+          <div className="flex-1 relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            <input
+              type="text"
+              placeholder="Tìm kiếm theo tên dự án..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-red-500 focus:border-red-500"
+            />
+          </div>
+
+          {/* Status Filter */}
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-red-500 focus:border-red-500"
+          >
+            <option value="">Tất cả trạng thái</option>
+            {projectStatuses.map(status => (
+              <option key={status} value={status}>{status}</option>
+            ))}
+          </select>
+        </div>
+      </div>
 
       {/* Error Message */}
       {error && (
@@ -346,20 +491,25 @@ export default function PMProjectsTab({ user }: PMProjectsTabProps) {
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
             <p className="text-gray-600 mt-4">Đang tải dự án...</p>
           </div>
-        ) : projects === null || projects.length === 0 ? (
+        ) : filteredProjects.length === 0 ? (
           <div className="text-center py-12">
             <FolderOpen className="w-12 h-12 mx-auto text-gray-300 mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">Chưa có dự án nào</h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Không tìm thấy dự án</h3>
             <p className="text-gray-600 mb-6">
-              Bắt đầu bằng cách tạo dự án đầu tiên của bạn
+              {searchTerm || statusFilter
+                ? 'Không có dự án nào phù hợp với bộ lọc hiện tại'
+                : 'Chưa có dự án nào trong hệ thống'
+              }
             </p>
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Tạo Dự án Đầu tiên
-            </button>
+            {!searchTerm && !statusFilter && (
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="inline-flex items-center px-4 py-2 bg-[#E60012] text-white rounded-lg hover:bg-[#cc0010] transition-colors"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Tạo dự án đầu tiên
+              </button>
+            )}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -367,13 +517,16 @@ export default function PMProjectsTab({ user }: PMProjectsTabProps) {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Tên Dự án
+                    Tên dự án
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Ngày Bắt đầu
+                    Ngày bắt đầu
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Ngày Kết thúc
+                    Ngày kết thúc
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Đang hoạt động
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Trạng thái
@@ -384,7 +537,7 @@ export default function PMProjectsTab({ user }: PMProjectsTabProps) {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {projects.map((project) => (
+                {filteredProjects.map((project) => (
                   <tr key={project.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
@@ -393,41 +546,29 @@ export default function PMProjectsTab({ user }: PMProjectsTabProps) {
                           <div className="text-sm font-medium text-gray-900">
                             {project.name}
                           </div>
-                          <div className="text-sm text-gray-500">
-                            ID: {project.id?.substring(0, 8)}...
-                          </div>
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        {project.start_date ? (
-                          <div className="flex items-center">
-                            <Calendar className="w-4 h-4 mr-2 text-gray-400" />
-                            {new Date(project.start_date).toLocaleDateString('vi-VN')}
-                          </div>
-                        ) : (
-                          <span className="text-gray-400">Chưa xác định</span>
-                        )}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <div className="flex items-center">
+                        <Calendar className="w-4 h-4 text-gray-400 mr-2" />
+                        {formatDate(project.start_date)}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <div className="flex items-center">
+                        <Calendar className="w-4 h-4 text-gray-400 mr-2" />
+                        {formatDate(project.end_date)}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <div className="flex items-center">
+                        <Users className="w-4 h-4 text-gray-400 mr-2" />
+                        {project.member_count || 0} thành viên
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        {project.end_date ? (
-                          <div className="flex items-center">
-                            <Clock className="w-4 h-4 mr-2 text-gray-400" />
-                            {new Date(project.end_date).toLocaleDateString('vi-VN')}
-                          </div>
-                        ) : (
-                          <span className="text-gray-400">Chưa xác định</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                        <CheckCircle className="w-3 h-3 mr-1" />
-                        Đang hoạt động
-                      </span>
+                      {renderProjectStatus(getProjectStatus(project))}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex space-x-2">
@@ -451,6 +592,13 @@ export default function PMProjectsTab({ user }: PMProjectsTabProps) {
                           title="Chỉnh sửa"
                         >
                           <Edit className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteProject(project)}
+                          className="p-1 text-red-600 hover:text-red-800 transition-colors"
+                          title="Xóa"
+                        >
+                          <Trash2 className="h-4 w-4" />
                         </button>
                       </div>
                     </td>
@@ -491,7 +639,7 @@ export default function PMProjectsTab({ user }: PMProjectsTabProps) {
                   name="name"
                   value={formData.name}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#E60012] focus:border-transparent"
                   placeholder="Nhập tên dự án"
                   required
                 />
@@ -507,7 +655,7 @@ export default function PMProjectsTab({ user }: PMProjectsTabProps) {
                   name="start_date"
                   value={formData.start_date}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#E60012] focus:border-transparent"
                 />
               </div>
 
@@ -521,7 +669,7 @@ export default function PMProjectsTab({ user }: PMProjectsTabProps) {
                   name="end_date"
                   value={formData.end_date}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#E60012] focus:border-transparent"
                 />
               </div>
 
@@ -546,9 +694,16 @@ export default function PMProjectsTab({ user }: PMProjectsTabProps) {
                 <button
                   type="submit"
                   disabled={creating}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="flex-1 px-4 py-2 bg-[#E60012] text-white rounded-md hover:bg-[#cc0010] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  {creating ? 'Đang tạo...' : 'Tạo dự án'}
+                  {creating ? (
+                    <div className="flex items-center">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Đang tạo...
+                    </div>
+                  ) : (
+                    'Tạo dự án'
+                  )}
                 </button>
               </div>
             </form>
@@ -649,7 +804,7 @@ export default function PMProjectsTab({ user }: PMProjectsTabProps) {
           <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900">
-                Thêm thành viên vào "{selectedProject.name}"
+                Thêm thành viên vào &quot;{selectedProject.name}&quot;
               </h3>
               <button
                 onClick={() => {
@@ -657,7 +812,7 @@ export default function PMProjectsTab({ user }: PMProjectsTabProps) {
                   setError(null);
                   setSelectedProject(null);
                   setSelectedUserId('');
-                  setSelectedRole('Developer');
+                  setSelectedRole('');
                 }}
                 className="text-gray-400 hover:text-gray-600"
               >
@@ -665,24 +820,7 @@ export default function PMProjectsTab({ user }: PMProjectsTabProps) {
               </button>
             </div>
 
-            {/* Current Members */}
-            {selectedProject.id && projectMembers[selectedProject.id] && (
-              <div className="mb-4">
-                <h4 className="text-sm font-medium text-gray-700 mb-2">Thành viên hiện tại:</h4>
-                <div className="max-h-32 overflow-y-auto">
-                  {projectMembers[selectedProject.id].map((member) => (
-                    <div key={member.user_id} className="flex items-center justify-between py-1 text-sm">
-                      <span className="text-gray-900">
-                        {member.user?.full_name || member.user_id}
-                      </span>
-                      <span className="text-gray-500 text-xs">
-                        {member.role_in_project || 'N/A'}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+
 
             <form onSubmit={handleAddMember} className="space-y-4">
               <div>
@@ -693,17 +831,11 @@ export default function PMProjectsTab({ user }: PMProjectsTabProps) {
                   id="user_select"
                   value={selectedUserId}
                   onChange={(e) => setSelectedUserId(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#E60012] focus:border-transparent"
                   required
                 >
                   <option value="">-- Chọn người dùng --</option>
-                  {availableUsers
-                    .filter(user =>
-                      !selectedProject.id ||
-                      !projectMembers[selectedProject.id] ||
-                      !projectMembers[selectedProject.id].some(member => member.user_id === user.id)
-                    )
-                    .map((user) => (
+                  {availableUsers.map((user) => (
                       <option key={user.id} value={user.id}>
                         {user.full_name} ({user.email})
                       </option>
@@ -712,21 +844,17 @@ export default function PMProjectsTab({ user }: PMProjectsTabProps) {
               </div>
 
               <div>
-                <label htmlFor="role_select" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="role_input" className="block text-sm font-medium text-gray-700 mb-1">
                   Vai trò trong dự án
                 </label>
-                <select
-                  id="role_select"
+                <input
+                  type="text"
+                  id="role_input"
                   value={selectedRole}
                   onChange={(e) => setSelectedRole(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="Developer">Developer</option>
-                  <option value="Tester">Tester</option>
-                  <option value="Designer">Designer</option>
-                  <option value="Analyst">Analyst</option>
-                  <option value="PM">PM</option>
-                </select>
+                  placeholder="Nhập vai trò trong dự án (VD: Developer, Tester, PM...)"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#E60012] focus:border-transparent"
+                />
               </div>
 
               {error && (
@@ -743,7 +871,7 @@ export default function PMProjectsTab({ user }: PMProjectsTabProps) {
                     setError(null);
                     setSelectedProject(null);
                     setSelectedUserId('');
-                    setSelectedRole('Developer');
+                    setSelectedRole('');
                   }}
                   className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
                 >
@@ -752,9 +880,16 @@ export default function PMProjectsTab({ user }: PMProjectsTabProps) {
                 <button
                   type="submit"
                   disabled={addingMember || !selectedUserId}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="flex-1 px-4 py-2 bg-[#E60012] text-white rounded-md hover:bg-[#cc0010] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  {addingMember ? 'Đang thêm...' : 'Thêm thành viên'}
+                  {addingMember ? (
+                    <div className="flex items-center">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Đang thêm...
+                    </div>
+                  ) : (
+                    'Thêm thành viên'
+                  )}
                 </button>
               </div>
             </form>
@@ -935,7 +1070,7 @@ export default function PMProjectsTab({ user }: PMProjectsTabProps) {
 
       {/* Delete Confirmation Dialog */}
       {showDeleteDialog && selectedMemberForDelete && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0  bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
             <div className="flex items-center mb-4">
               <div className="flex-shrink-0">
@@ -952,7 +1087,7 @@ export default function PMProjectsTab({ user }: PMProjectsTabProps) {
 
             <div className="mb-6">
               <p className="text-sm text-gray-500 mb-2">
-                Bạn có chắc chắn muốn xóa thành viên sau khỏi dự án "{selectedProjectForMembers?.name}"?
+                Bạn có chắc chắn muốn xóa thành viên sau khỏi dự án &quot;{selectedProjectForMembers?.name}&quot;?
               </p>
               <div className="bg-gray-50 rounded-lg p-4">
                 <div className="flex items-center">
@@ -1000,6 +1135,84 @@ export default function PMProjectsTab({ user }: PMProjectsTabProps) {
                   </div>
                 ) : (
                   'Xóa thành viên'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Project Confirmation Dialog */}
+      {showDeleteProjectDialog && selectedProjectForDelete && (
+        <div className="fixed inset-0  bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <div className="flex items-center mb-4">
+              <div className="flex-shrink-0">
+                <svg className="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.268 15.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-lg font-medium text-gray-900">
+                  Xác nhận xóa dự án
+                </h3>
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <p className="text-sm text-gray-500 mb-2">
+                Bạn có chắc chắn muốn xóa dự án sau không?
+              </p>
+              <div className="bg-gray-50 rounded-lg p-4">
+                <div className="flex items-center">
+                  <FolderOpen className="w-5 h-5 text-gray-400 mr-3" />
+                  <div className="flex-1">
+                    <p className="font-medium text-gray-900">{selectedProjectForDelete.name}</p>
+                    <p className="text-sm text-gray-500">
+                      {formatDate(selectedProjectForDelete.start_date)} - {formatDate(selectedProjectForDelete.end_date)}
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      {selectedProjectForDelete.member_count || 0} thành viên
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.268 15.5c-.77.833.192 2.5 1.732 2.5z" />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-sm text-red-800">
+                      <strong>Cảnh báo:</strong> Hành động này không thể hoàn tác. Tất cả dữ liệu liên quan đến dự án này sẽ bị xóa vĩnh viễn, bao gồm thông tin thành viên và lịch sử dự án.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={handleCancelDeleteProject}
+                disabled={deletingProject}
+                className="px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 transition-colors disabled:opacity-50"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={handleConfirmDeleteProject}
+                disabled={deletingProject}
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {deletingProject ? (
+                  <div className="flex items-center">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Đang xóa...
+                  </div>
+                ) : (
+                  'Xóa dự án'
                 )}
               </button>
             </div>

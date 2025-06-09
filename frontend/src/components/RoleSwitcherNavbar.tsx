@@ -82,8 +82,6 @@ export default function RoleSwitcherNavbar() {
     return null;
   }
 
-  const currentRoleConfig = ROLE_CONFIGS[currentRole.name];
-
   const handleRoleSwitch = (role: typeof availableRoles[0]) => {
     switchRole(role);
     setIsDropdownOpen(false);
@@ -95,11 +93,7 @@ export default function RoleSwitcherNavbar() {
     }
   };
 
-  const handleDashboardNavigation = () => {
-    if (currentRoleConfig) {
-      router.push(currentRoleConfig.dashboardPath);
-    }
-  };
+
 
   return (
     <nav className="bg-white shadow-lg border-b">
@@ -140,7 +134,6 @@ export default function RoleSwitcherNavbar() {
                     </div>
                     {availableRoles.map((role) => {
                       const roleConfig = ROLE_CONFIGS[role.name];
-                      const isActive = currentRole.id === role.id;
 
                       return (
                         <button

@@ -93,7 +93,7 @@ export default function DashboardPage() {
                     href = '/employee/dashboard';
                     bgColor = 'bg-gray-50';
                     textColor = 'text-brand-gray';
-                    description = 'Không gian làm việc cá nhân';
+                    description = 'Quản lý thông tin cá nhân';
                     break;
                 }
 

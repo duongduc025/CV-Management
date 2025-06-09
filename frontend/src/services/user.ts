@@ -20,6 +20,16 @@ export interface User {
   projects?: string[]; // List of project names
 }
 
+export interface PaginatedUsersResponse {
+  users: User[];
+  current_page: number;
+  total_pages: number;
+  total_users: number;
+  per_page: number;
+  has_next: boolean;
+  has_prev: boolean;
+}
+
 // User management functions for admin and authorized users
 export const getUsers = async (): Promise<User[]> => {
   try {
@@ -30,6 +40,25 @@ export const getUsers = async (): Promise<User[]> => {
       throw new Error(error.response.data.message || 'Failed to fetch users');
     }
     throw new Error('Failed to fetch users. Please try again.');
+  }
+};
+
+// Get paginated users (Admin only)
+export const getUsersPaginated = async (page: number = 1): Promise<PaginatedUsersResponse> => {
+  try {
+    // Set auth token for authenticated requests
+    const token = localStorage.getItem('token');
+    if (token) {
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await axios.get(`${API_URL}/users/paginated?page=${page}`);
+    return response.data.data;
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response) {
+      throw new Error(error.response.data.message || 'Failed to fetch paginated users');
+    }
+    throw new Error('Failed to fetch paginated users. Please try again.');
   }
 };
 
@@ -83,6 +112,12 @@ export const deleteUser = async (id: string): Promise<void> => {
 // Additional user-related functions can be added here
 export const getUsersInDepartment = async (departmentId: string): Promise<User[]> => {
   try {
+    // Set auth token for authenticated requests
+    const token = localStorage.getItem('token');
+    if (token) {
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    }
+
     const response = await axios.get(`${API_URL}/users/department/${departmentId}`);
     return response.data.data;
   } catch (error) {

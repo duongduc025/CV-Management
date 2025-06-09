@@ -31,9 +31,7 @@ export default function BULDashboardLayout({ user }: BULDashboardLayoutProps) {
     return () => window.removeEventListener('resize', checkScreenSize);
   }, []);
 
-  const toggleSidebar = () => {
-    setSidebarOpen(!sidebarOpen);
-  };
+
 
   return (
     <div className="flex h-screen w-full bg-gray-50">
@@ -49,7 +47,7 @@ export default function BULDashboardLayout({ user }: BULDashboardLayoutProps) {
       {/* Mobile overlay */}
       {isMobile && sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-20 lg:hidden"
+          className="fixed inset-0  bg-opacity-50 z-20 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}

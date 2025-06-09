@@ -46,6 +46,13 @@ export interface ProjectCreateRequest {
   end_date?: string;
 }
 
+export interface AdminProjectCreateRequest {
+  name: string;
+  start_date?: string;
+  end_date?: string;
+  pm_user_id: string;
+}
+
 export interface ProjectResponse {
   status: string;
   message?: string;
@@ -103,6 +110,22 @@ export const createProject = async (projectData: ProjectCreateRequest): Promise<
       throw new Error(error.response.data.message || 'Không thể tạo dự án');
     }
     throw new Error('Không thể tạo dự án. Vui lòng thử lại.');
+  }
+};
+
+// Create a new project with PM assignment (Admin only)
+export const createProjectWithPM = async (projectData: AdminProjectCreateRequest): Promise<Project> => {
+  try {
+    console.log('Tạo dự án mới với PM được chỉ định:', projectData);
+    const response = await axios.post(`${API_URL}/projects/admin`, projectData);
+    console.log('Phản hồi tạo dự án với PM:', response.data);
+    return response.data.data;
+  } catch (error) {
+    console.error('Lỗi tạo dự án với PM:', error);
+    if (axios.isAxiosError(error) && error.response) {
+      throw new Error(error.response.data.message || 'Không thể tạo dự án với PM được chỉ định');
+    }
+    throw new Error('Không thể tạo dự án với PM được chỉ định. Vui lòng thử lại.');
   }
 };
 
@@ -231,5 +254,37 @@ export const getProjectMembers = async (projectId: string): Promise<UserWithProj
       throw new Error(error.response.data.message || 'Không thể tải danh sách thành viên dự án');
     }
     throw new Error('Không thể tải danh sách thành viên dự án. Vui lòng thử lại.');
+  }
+};
+
+// Get users by role (Admin only)
+export const getUsersByRole = async (role: string): Promise<User[]> => {
+  try {
+    console.log('Lấy người dùng theo vai trò:', role);
+    const response = await axios.get(`${API_URL}/users/role/${role}`);
+    console.log('Phản hồi lấy người dùng theo vai trò:', response.data);
+    return response.data.data;
+  } catch (error) {
+    console.error('Lỗi lấy người dùng theo vai trò:', error);
+    if (axios.isAxiosError(error) && error.response) {
+      throw new Error(error.response.data.message || 'Không thể lấy danh sách người dùng theo vai trò');
+    }
+    throw new Error('Không thể lấy danh sách người dùng theo vai trò. Vui lòng thử lại.');
+  }
+};
+
+// Get all PM users (Admin only)
+export const getPMUsers = async (): Promise<User[]> => {
+  try {
+    console.log('Lấy danh sách người dùng có vai trò PM');
+    const response = await axios.get(`${API_URL}/users/pm`);
+    console.log('Phản hồi lấy danh sách PM:', response.data);
+    return response.data.data;
+  } catch (error) {
+    console.error('Lỗi lấy danh sách PM:', error);
+    if (axios.isAxiosError(error) && error.response) {
+      throw new Error(error.response.data.message || 'Không thể lấy danh sách PM');
+    }
+    throw new Error('Không thể lấy danh sách PM. Vui lòng thử lại.');
   }
 };

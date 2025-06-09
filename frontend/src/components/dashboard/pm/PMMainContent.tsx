@@ -18,11 +18,11 @@ export default function PMMainContent({ activeTab, user }: PMMainContentProps) {
       case 'home':
         return <PMHomeTab user={user} />;
       case 'projects':
-        return <PMProjectsTab user={user} />;
+        return <PMProjectsTab />;
       case 'members':
-        return <PMMembersTab user={user} />;
+        return <PMMembersTab />;
       case 'cv-requests':
-        return <PMCVRequestsTab user={user} />;
+        return <PMCVRequestsTab />;
       default:
         return <PMHomeTab user={user} />;
     }

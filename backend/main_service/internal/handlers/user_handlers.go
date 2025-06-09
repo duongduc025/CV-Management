@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -12,7 +13,8 @@ import (
 	"github.com/vdt/cv-management/internal/models"
 )
 
-// GetUsersInDepartment returns users from a specific department (BUL/Lead only)
+// GetUsersInDepartment returns users from a specific department (Admin and BUL/Lead)
+// Admin users always have access to this function regardless of department
 func GetUsersInDepartment(c *gin.Context) {
 	fmt.Printf("=== GetUsersInDepartment Debug Info ===\n")
 
@@ -49,16 +51,28 @@ func GetUsersInDepartment(c *gin.Context) {
 	}
 
 	fmt.Printf("GetUsersInDepartment: User ID: %v, Roles: %v\n", userID, roleSlice)
+	fmt.Printf("GetUsersInDepartment: Checking access for department: %s\n", c.Param("department_id"))
 
-	// Check if user has BUL/Lead role
-	if !contains(roleSlice, "BUL/Lead") {
-		fmt.Printf("GetUsersInDepartment: Access denied - user does not have BUL/Lead role\n")
+	// Check if user has Admin or BUL/Lead role
+	// Admin users always have access to this function
+	isAdmin := contains(roleSlice, "Admin")
+	isBULLead := contains(roleSlice, "BUL/Lead")
+
+	// Admin users always have unrestricted access
+	if isAdmin {
+		fmt.Printf("GetUsersInDepartment: Admin access granted - proceeding without restrictions\n")
+	} else if isBULLead {
+		fmt.Printf("GetUsersInDepartment: BUL/Lead access granted\n")
+	} else {
+		fmt.Printf("GetUsersInDepartment: Access denied - user does not have Admin or BUL/Lead role\n")
 		c.JSON(http.StatusForbidden, gin.H{
 			"status":  "error",
-			"message": "Forbidden - only BUL/Lead users can access this endpoint",
+			"message": "Forbidden - only Admin or BUL/Lead users can access this endpoint",
 		})
 		return
 	}
+
+	fmt.Printf("GetUsersInDepartment: Access granted - Admin: %v, BUL/Lead: %v\n", isAdmin, isBULLead)
 
 	// Get department ID from URL parameter
 	departmentID := c.Param("department_id")
@@ -355,6 +369,206 @@ func GetUsers(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"status": "success",
 		"data":   allUsers,
+	})
+}
+
+// GetUsersPaginated returns a paginated list of users (Admin only)
+func GetUsersPaginated(c *gin.Context) {
+	fmt.Println("GetUsersPaginated: Fetching paginated users from database")
+
+	// Parse page parameter from query string
+	pageStr := c.DefaultQuery("page", "1")
+	page, err := strconv.Atoi(pageStr)
+	if err != nil || page < 1 {
+		fmt.Printf("GetUsersPaginated: Invalid page parameter '%s', defaulting to page 1\n", pageStr)
+		page = 1
+	}
+
+	const perPage = 10
+	offset := (page - 1) * perPage
+
+	fmt.Printf("GetUsersPaginated: Fetching page %d with offset %d\n", page, offset)
+
+	// Fetch paginated users from the database
+	paginatedResponse, err := getUsersPaginated(c, page, perPage, offset)
+	if err != nil {
+		fmt.Printf("GetUsersPaginated error: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Error fetching paginated users",
+		})
+		return
+	}
+
+	fmt.Printf("GetUsersPaginated: Returning page %d with %d users (total: %d)\n",
+		page, len(paginatedResponse.Users), paginatedResponse.TotalUsers)
+
+	c.JSON(http.StatusOK, gin.H{
+		"status": "success",
+		"data":   paginatedResponse,
+	})
+}
+
+// GetUsersByRole returns users filtered by role (Admin only)
+func GetUsersByRole(c *gin.Context) {
+	roleName := c.Param("role")
+	if roleName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"message": "Role parameter is required",
+		})
+		return
+	}
+
+	fmt.Printf("GetUsersByRole: Fetching users with role: %s\n", roleName)
+
+	// Query database for users with the specified role
+	rows, err := database.DB.Query(c, `
+		SELECT u.id, u.employee_code, u.full_name, u.email, u.department_id,
+		       COALESCE(d.name, '') as department_name
+		FROM users u
+		LEFT JOIN departments d ON u.department_id = d.id
+		INNER JOIN user_roles ur ON u.id = ur.user_id
+		INNER JOIN roles r ON ur.role_id = r.id
+		WHERE r.name = $1
+		ORDER BY u.full_name`, roleName)
+
+	if err != nil {
+		fmt.Printf("GetUsersByRole error: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Error fetching users by role",
+		})
+		return
+	}
+	defer rows.Close()
+
+	var users []models.User
+	for rows.Next() {
+		var user models.User
+		var deptName string
+
+		err := rows.Scan(&user.ID, &user.EmployeeCode, &user.FullName,
+			&user.Email, &user.DepartmentID, &deptName)
+		if err != nil {
+			fmt.Printf("GetUsersByRole scan error: %v\n", err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status":  "error",
+				"message": "Error parsing user data",
+			})
+			return
+		}
+
+		// Set department if available
+		if user.DepartmentID != "" && deptName != "" {
+			user.Department = models.Department{
+				ID:   user.DepartmentID,
+				Name: deptName,
+			}
+		}
+
+		// Get user roles
+		userRoles, err := getUserRoles(c, user.ID)
+		if err != nil {
+			fmt.Printf("Warning: Could not fetch roles for user %s: %v\n", user.ID, err)
+		} else {
+			user.Roles = userRoles
+		}
+
+		users = append(users, user)
+	}
+
+	// Check for errors during iteration
+	if err = rows.Err(); err != nil {
+		fmt.Printf("GetUsersByRole iteration error: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Error reading user data",
+		})
+		return
+	}
+
+	fmt.Printf("GetUsersByRole: Returning %d users with role %s\n", len(users), roleName)
+	c.JSON(http.StatusOK, gin.H{
+		"status": "success",
+		"data":   users,
+	})
+}
+
+// GetPMUsers returns all users with PM role (Admin only)
+func GetPMUsers(c *gin.Context) {
+	fmt.Println("GetPMUsers: Fetching all users with PM role")
+
+	// Query database for users with PM role
+	rows, err := database.DB.Query(c, `
+		SELECT u.id, u.employee_code, u.full_name, u.email, u.department_id,
+		       COALESCE(d.name, '') as department_name
+		FROM users u
+		LEFT JOIN departments d ON u.department_id = d.id
+		INNER JOIN user_roles ur ON u.id = ur.user_id
+		INNER JOIN roles r ON ur.role_id = r.id
+		WHERE r.name = 'PM'
+		ORDER BY u.full_name`)
+
+	if err != nil {
+		fmt.Printf("GetPMUsers error: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Error fetching PM users",
+		})
+		return
+	}
+	defer rows.Close()
+
+	var users []models.User
+	for rows.Next() {
+		var user models.User
+		var deptName string
+
+		err := rows.Scan(&user.ID, &user.EmployeeCode, &user.FullName,
+			&user.Email, &user.DepartmentID, &deptName)
+		if err != nil {
+			fmt.Printf("GetPMUsers scan error: %v\n", err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status":  "error",
+				"message": "Error parsing PM user data",
+			})
+			return
+		}
+
+		// Set department if available
+		if user.DepartmentID != "" && deptName != "" {
+			user.Department = models.Department{
+				ID:   user.DepartmentID,
+				Name: deptName,
+			}
+		}
+
+		// Get user roles
+		userRoles, err := getUserRoles(c, user.ID)
+		if err != nil {
+			fmt.Printf("Warning: Could not fetch roles for PM user %s: %v\n", user.ID, err)
+		} else {
+			user.Roles = userRoles
+		}
+
+		users = append(users, user)
+	}
+
+	// Check for errors during iteration
+	if err = rows.Err(); err != nil {
+		fmt.Printf("GetPMUsers iteration error: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Error reading PM user data",
+		})
+		return
+	}
+
+	fmt.Printf("GetPMUsers: Returning %d PM users\n", len(users))
+	c.JSON(http.StatusOK, gin.H{
+		"status": "success",
+		"data":   users,
 	})
 }
 
@@ -887,6 +1101,111 @@ func getAllUsers(c *gin.Context) ([]models.User, error) {
 
 	fmt.Printf("getAllUsers: Found %d users\n", len(users))
 	return users, nil
+}
+
+// getUsersPaginated fetches paginated users from the database (Admin access)
+func getUsersPaginated(c *gin.Context, page, perPage, offset int) (models.PaginatedUsersResponse, error) {
+	fmt.Printf("getUsersPaginated: Fetching page %d with %d users per page (offset: %d)\n", page, perPage, offset)
+
+	// First, get the total count of users
+	var totalUsers int
+	err := database.DB.QueryRow(c, `SELECT COUNT(*) FROM users`).Scan(&totalUsers)
+	if err != nil {
+		return models.PaginatedUsersResponse{}, fmt.Errorf("error counting users: %w", err)
+	}
+
+	// Calculate pagination metadata
+	totalPages := (totalUsers + perPage - 1) / perPage // Ceiling division
+	hasNext := page < totalPages
+	hasPrev := page > 1
+
+	// Fetch the paginated users
+	rows, err := database.DB.Query(c, `
+		SELECT u.id, u.employee_code, u.full_name, u.email, u.department_id,
+		       COALESCE(d.name, '') as department_name,
+		       (
+		           SELECT COALESCE(string_agg(p.name, ', '), '')
+		           FROM project_members pm
+		           JOIN projects p ON pm.project_id = p.id
+		           WHERE pm.user_id = u.id
+		             AND (pm.left_at IS NULL OR pm.left_at > CURRENT_DATE)
+		       ) as project_names
+		FROM users u
+		LEFT JOIN departments d ON u.department_id = d.id
+		ORDER BY u.full_name
+		LIMIT $1 OFFSET $2`, perPage, offset)
+
+	if err != nil {
+		return models.PaginatedUsersResponse{}, fmt.Errorf("error querying paginated users: %w", err)
+	}
+	defer rows.Close()
+
+	var users []models.User
+	for rows.Next() {
+		var user models.User
+		var deptName string
+		var projectNamesStr string
+
+		err := rows.Scan(&user.ID, &user.EmployeeCode, &user.FullName,
+			&user.Email, &user.DepartmentID, &deptName, &projectNamesStr)
+		if err != nil {
+			return models.PaginatedUsersResponse{}, fmt.Errorf("error scanning user: %w", err)
+		}
+
+		// Set department if available
+		if user.DepartmentID != "" && deptName != "" {
+			user.Department = models.Department{
+				ID:   user.DepartmentID,
+				Name: deptName,
+			}
+		}
+
+		// Parse project names from comma-separated string
+		if projectNamesStr != "" {
+			// Split the comma-separated project names
+			projectNames := strings.Split(projectNamesStr, ", ")
+			// Remove any empty strings
+			var filteredProjects []string
+			for _, name := range projectNames {
+				if strings.TrimSpace(name) != "" {
+					filteredProjects = append(filteredProjects, strings.TrimSpace(name))
+				}
+			}
+			user.Projects = filteredProjects
+		} else {
+			user.Projects = []string{} // Empty slice instead of nil
+		}
+
+		// Get user roles
+		userRoles, err := getUserRoles(c, user.ID)
+		if err != nil {
+			fmt.Printf("Warning: Could not fetch roles for user %s: %v\n", user.ID, err)
+		} else {
+			user.Roles = userRoles
+		}
+
+		users = append(users, user)
+	}
+
+	if err = rows.Err(); err != nil {
+		return models.PaginatedUsersResponse{}, fmt.Errorf("error iterating users: %w", err)
+	}
+
+	// Build the paginated response
+	response := models.PaginatedUsersResponse{
+		Users:       users,
+		CurrentPage: page,
+		TotalPages:  totalPages,
+		TotalUsers:  totalUsers,
+		PerPage:     perPage,
+		HasNext:     hasNext,
+		HasPrev:     hasPrev,
+	}
+
+	fmt.Printf("getUsersPaginated: Returning %d users for page %d (total: %d users, %d pages)\n",
+		len(users), page, totalUsers, totalPages)
+
+	return response, nil
 }
 
 // getUserRoles fetches roles for a specific user

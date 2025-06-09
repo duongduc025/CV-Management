@@ -5,7 +5,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
 export interface SSEMessage {
   id: string;
   event: string;
-  data: any;
+  data: unknown;
 }
 
 export interface SSENotificationData {
@@ -44,6 +44,13 @@ export class SSEService {
         // Check if we're in a browser environment
         if (typeof window === 'undefined' || typeof EventSource === 'undefined') {
           reject(new Error('SSE not supported in this environment'));
+          return;
+        }
+
+        // Check if already connected or connecting
+        if (this.eventSource && (this.eventSource.readyState === EventSource.OPEN || this.eventSource.readyState === EventSource.CONNECTING)) {
+          console.log('SSE already connected or connecting');
+          resolve();
           return;
         }
 
@@ -113,6 +120,9 @@ export class SSEService {
       this.eventSource = null;
       console.log('SSE connection closed');
     }
+    // Reset reconnection attempts when manually disconnecting
+    this.reconnectAttempts = 0;
+    this.reconnectDelay = 1000;
   }
 
   // Handle incoming messages
@@ -191,9 +201,13 @@ export class SSEService {
   private handleError(event: Event) {
     console.error('SSE connection error:', event);
 
-    if (this.eventSource?.readyState === EventSource.CLOSED) {
+    // Only attempt reconnect if the connection was actually established before
+    // and we're not already at max attempts
+    if (this.eventSource?.readyState === EventSource.CLOSED && this.reconnectAttempts < this.maxReconnectAttempts) {
       console.log('SSE connection closed, attempting to reconnect...');
       this.attemptReconnect();
+    } else if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      console.log('Max reconnection attempts reached, stopping reconnection');
     }
   }
 
@@ -208,6 +222,13 @@ export class SSEService {
     console.log(`Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts}) in ${this.reconnectDelay}ms`);
 
     setTimeout(() => {
+      // Check if we should still reconnect (user might have logged out)
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.log('No token found, cancelling reconnection');
+        return;
+      }
+
       this.connect().catch((error) => {
         console.error('Reconnection failed:', error);
         this.reconnectDelay = Math.min(this.reconnectDelay * 2, 30000); // Max 30 seconds
@@ -254,6 +275,6 @@ export const SSE_STATES = {
 
 // Make SSE service available globally for debugging (only in development)
 if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-  (window as any).sseService = sseService;
+  (window as unknown as { sseService: typeof sseService }).sseService = sseService;
   console.log('SSE service available globally as window.sseService for debugging');
 }

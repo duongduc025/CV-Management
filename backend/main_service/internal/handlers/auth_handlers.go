@@ -133,8 +133,8 @@ func Register(c *gin.Context) {
 
 		// Create empty CV details for the new CV
 		_, err = tx.Exec(c,
-			`INSERT INTO cv_details (id, cv_id, ho_ten, chuc_danh, anh_chan_dung, tom_tat, thong_tin_ca_nhan, thong_tin_dao_tao, thong_tin_khoa_hoc, thong_tin_ki_nang, cv_path)
-			VALUES (uuid_generate_v4(), $1, '', '', '', '', '', '', '', '', '')`,
+			`INSERT INTO cv_details (id, cv_id, full_name, job_title, summary, created_at)
+			VALUES (uuid_generate_v4(), $1, '', '', '', NOW())`,
 			cvID)
 
 		if err != nil {
@@ -222,7 +222,7 @@ func Login(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"status":  "error",
-			"message": "Invalid credentials",
+			"message": "Đăng nhập thất bại",
 		})
 		return
 	}
@@ -231,7 +231,7 @@ func Login(c *gin.Context) {
 	if !utils.CheckPasswordHash(loginData.Password, hashedPassword) {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"status":  "error",
-			"message": "Invalid credentials",
+			"message": "Mật khẩu không chính xác",
 		})
 		return
 	}

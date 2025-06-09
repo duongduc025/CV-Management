@@ -14,14 +14,15 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Define public routes outside component to prevent recreation on every render
+const PUBLIC_ROUTES = ['/', '/login', '/register'];
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const pathname = usePathname();
-
-  const publicRoutes = ['/', '/login', '/register'];
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -52,7 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setLoading(false);
             return;
           }
-        } catch (tokenParseError) {
+        } catch {
           // Invalid token format, clear it
           localStorage.removeItem('token');
           localStorage.removeItem('refreshToken');
@@ -66,14 +67,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const userData = await getCurrentUser();
         setUser(userData);
         setError(null);
-      } catch (err) {
+      } catch {
         // Clear tokens on authentication error
         localStorage.removeItem('token');
         localStorage.removeItem('refreshToken');
         setUser(null);
 
         // Only redirect to login if not already on a public page
-        if (!publicRoutes.includes(pathname)) {
+        if (!PUBLIC_ROUTES.includes(pathname)) {
           router.push('/login');
         }
       } finally {
@@ -88,8 +89,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await logout();
       setUser(null);
-      router.push('/login');
-    } catch (err) {
+      router.push('/');
+    } catch {
       setError('Logout failed');
     }
   };

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { FileText, Loader2 } from 'lucide-react';
 
 const LoadingPage: React.FC = () => {
   const [progress, setProgress] = useState(0);
@@ -16,9 +17,9 @@ const LoadingPage: React.FC = () => {
           clearInterval(progressInterval);
           return 100;
         }
-        return prev + 15; // Use fixed increment instead of random
+        return prev + 12; // Slightly slower for smoother animation
       });
-    }, 200);
+    }, 300);
 
     // Animate loading dots
     const dotsInterval = setInterval(() => {
@@ -26,7 +27,7 @@ const LoadingPage: React.FC = () => {
         if (prev === '...') return '';
         return prev + '.';
       });
-    }, 500);
+    }, 600);
 
     return () => {
       clearInterval(progressInterval);
@@ -35,91 +36,101 @@ const LoadingPage: React.FC = () => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-brand-gray via-gray-800 to-gray-900 flex items-center justify-center relative overflow-hidden">
-      {/* Background animated elements */}
-      <div className="absolute inset-0">
-        <div className="absolute top-1/4 left-1/4 w-64 h-64 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse" style={{backgroundColor: '#E60012'}}></div>
-        <div className="absolute top-3/4 right-1/4 w-64 h-64 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse animation-delay-2000" style={{backgroundColor: '#83C21E'}}></div>
-        <div className="absolute bottom-1/4 left-1/2 w-64 h-64 bg-gray-600 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse animation-delay-4000"></div>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center relative overflow-hidden">
+      {/* Subtle background decorations */}
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute top-20 left-20 w-32 h-32 bg-red-100 rounded-full opacity-30 animate-pulse" style={{animationDelay: '0s'}}></div>
+        <div className="absolute bottom-32 right-32 w-24 h-24 bg-green-100 rounded-full opacity-25 animate-pulse" style={{animationDelay: '1s'}}></div>
+        <div className="absolute top-1/2 left-10 w-16 h-16 bg-gray-200 rounded-full opacity-20 animate-pulse" style={{animationDelay: '2s'}}></div>
+        <div className="absolute bottom-20 left-1/3 w-20 h-20 bg-red-50 rounded-full opacity-30 animate-pulse" style={{animationDelay: '1.5s'}}></div>
       </div>
 
-      {/* Floating particles - only render on client to prevent hydration mismatch */}
-      {isClient && [...Array(20)].map((_, i) => (
+      {/* Main loading container */}
+      <div className="relative z-10 text-center p-8">
+        {/* Logo matching landing page style */}
+        <div className="flex items-center justify-center mb-8">
+          <div className="w-16 h-16 bg-gradient-to-br from-red-500 to-red-600 rounded-lg flex items-center justify-center mr-4 shadow-lg">
+            <FileText className="w-8 h-8 text-white" />
+          </div>
+          <h1 className="text-4xl md:text-6xl font-bold text-gray-800 animate-fade-in">
+            VDT CV System
+          </h1>
+        </div>
+
+        {/* Loading message */}
+        <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
+          Đang tải hệ thống{dots}
+        </p>
+
+        {/* Modern loading spinner */}
+        <div className="mb-8 flex justify-center">
+          <div className="relative">
+            <Loader2 className="w-12 h-12 text-red-500 animate-spin" />
+            <div className="absolute inset-0 w-12 h-12 border-2 border-red-200 rounded-full animate-ping"></div>
+          </div>
+        </div>
+
+        {/* Progress bar with clean design */}
+        <div className="w-96 max-w-full mx-auto mb-6">
+          <div className="flex justify-between text-sm text-gray-500 mb-3">
+            <span className="font-medium">Tiến độ tải</span>
+            <span className="font-semibold">{Math.round(progress)}%</span>
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden shadow-inner">
+            <div
+              className="h-full rounded-full transition-all duration-500 ease-out shadow-sm bg-gradient-to-r from-red-500 to-red-600"
+              style={{
+                width: `${Math.min(progress, 100)}%`
+              }}
+            >
+              <div className="h-full bg-white bg-opacity-30 animate-pulse rounded-full"></div>
+            </div>
+          </div>
+        </div>
+
+        {/* Loading status */}
+        <div className="text-sm text-gray-500 space-y-1">
+          <p className="animate-pulse">Đang khởi tạo ứng dụng...</p>
+          {progress > 30 && (
+            <p className="animate-fade-in">Đang tải dữ liệu người dùng...</p>
+          )}
+          {progress > 60 && (
+            <p className="animate-fade-in">Đang chuẩn bị giao diện...</p>
+          )}
+          {progress > 90 && (
+            <p className="animate-fade-in text-green-600 font-medium">Hoàn tất!</p>
+          )}
+        </div>
+      </div>
+
+      {/* Floating elements for subtle animation */}
+      {isClient && [...Array(8)].map((_, i) => (
         <div
           key={i}
-          className="absolute w-2 h-2 bg-white rounded-full opacity-30 animate-ping"
+          className="absolute w-1 h-1 bg-red-300 rounded-full opacity-40 animate-float"
           style={{
-            left: `${(i * 17 + 10) % 90 + 5}%`, // Deterministic positioning
-            top: `${(i * 23 + 15) % 80 + 10}%`, // Deterministic positioning
-            animationDelay: `${(i % 6) * 0.5}s`, // Deterministic delay
-            animationDuration: `${2 + (i % 3)}s` // Deterministic duration
+            left: `${(i * 12 + 15) % 85 + 10}%`,
+            top: `${(i * 15 + 20) % 70 + 15}%`,
+            animationDelay: `${(i % 4) * 0.8}s`,
+            animationDuration: `${3 + (i % 2)}s`
           }}
         ></div>
       ))}
 
-      {/* Main loading container */}
-      <div className="relative z-10 text-center p-8">
-        {/* Logo/Brand */}
-        <div className="mb-8">
-          <div className="w-20 h-20 mx-auto mb-4 rounded-full flex items-center justify-center shadow-2xl animate-bounce" style={{background: 'linear-gradient(to right, #E60012, #83C21E)'}}>
-            <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center">
-              <div className="w-6 h-6 rounded-full animate-spin" style={{background: 'linear-gradient(to right, #E60012, #83C21E)'}}></div>
-            </div>
-          </div>
-          <h1 className="text-4xl font-bold text-white mb-2 animate-fade-in">
-            VDT CV System
-          </h1>
-          <p className="text-gray-300 text-lg">Đang tải nội dung{dots}</p>
-        </div>
-
-        {/* Spinner */}
-        <div className="mb-8 flex justify-center">
-          <div className="relative">
-            <div className="w-16 h-16 border-4 border-gray-400 border-opacity-30 rounded-full"></div>
-            <div className="absolute top-0 left-0 w-16 h-16 border-4 border-transparent rounded-full animate-spin" style={{borderTopColor: '#E60012', borderRightColor: '#E60012'}}></div>
-            <div className="absolute top-2 left-2 w-12 h-12 border-4 border-transparent rounded-full animate-spin animation-reverse" style={{borderTopColor: '#83C21E', borderRightColor: '#83C21E'}}></div>
-          </div>
-        </div>
-
-        {/* Progress bar */}
-        <div className="w-80 max-w-full mx-auto mb-6">
-          <div className="flex justify-between text-sm text-gray-300 mb-2">
-            <span>Tiến độ</span>
-            <span>{Math.round(progress)}%</span>
-          </div>
-          <div className="w-full bg-gray-800 bg-opacity-50 rounded-full h-2 overflow-hidden">
-            <div
-              className="h-full rounded-full transition-all duration-300 ease-out shadow-lg"
-              style={{
-                width: `${Math.min(progress, 100)}%`,
-                background: 'linear-gradient(to right, #E60012, #83C21E)'
-              }}
-            >
-              <div className="h-full bg-white bg-opacity-20 animate-pulse"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Bottom decoration */}
-      <div className="absolute bottom-0 left-0 right-0 h-1 animate-pulse" style={{background: 'linear-gradient(to right, #E60012, #83C21E)'}}></div>
-
       <style jsx>{`
-        .animation-delay-2000 {
-          animation-delay: 2s;
-        }
-        .animation-delay-4000 {
-          animation-delay: 4s;
-        }
-        .animation-reverse {
-          animation-direction: reverse;
-        }
         .animate-fade-in {
-          animation: fadeIn 1s ease-in;
+          animation: fadeIn 0.8s ease-in;
+        }
+        .animate-float {
+          animation: float 4s ease-in-out infinite;
         }
         @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(-20px); }
+          from { opacity: 0; transform: translateY(10px); }
           to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes float {
+          0%, 100% { transform: translateY(0px) rotate(0deg); }
+          50% { transform: translateY(-10px) rotate(180deg); }
         }
       `}</style>
     </div>

@@ -16,7 +16,6 @@ export default function NotificationsPage() {
 
   useEffect(() => {
     // If not loading and no user, redirect to login
-    console.log('Notifications', notifications);
     if (!loading && !user) {
       router.push('/login');
       return;
@@ -115,7 +114,7 @@ export default function NotificationsPage() {
             <div className="mb-8">
               <h1 className="text-3xl font-bold text-gray-900">Thông báo</h1>
               <p className="mt-2 text-gray-600">
-                Cập nhật thông tin mới nhất và thông báo hệ thống.
+                Thông báo về việc cập nhật CV
               </p>
             </div>
 
@@ -211,7 +210,7 @@ export default function NotificationsPage() {
             <div className="mt-8">
               <Button
                 variant="outline"
-                onClick={() => router.push('/employee/profile')}
+                onClick={() => router.push('/employee/dashboard')}
               >
                 ← Trở về
               </Button>

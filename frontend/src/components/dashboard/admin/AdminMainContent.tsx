@@ -1,40 +1,46 @@
 "use client";
 
-import { User } from '@/services/auth';
+import { useEffect, useState } from 'react';
+import AdminHomeTab from './AdminHomeTab';
+import AdminRequestsTab from './AdminRequestsTab';
+import AdminDepartmentsTab from './AdminDepartmentsTab';
+import AdminProjectsTab from './AdminProjectsTab';
+import AdminUsersTab from './AdminUsersTab';
 
 interface AdminMainContentProps {
   activeTab: string;
-  user: User;
 }
 
-export default function AdminMainContent({ activeTab, user }: AdminMainContentProps) {
-  const renderContent = () => {
+export default function AdminMainContent({ activeTab }: AdminMainContentProps) {
+  // Use state to track current component to avoid re-renders
+  const [currentTab, setCurrentTab] = useState<JSX.Element>(<AdminHomeTab />);
+  
+  useEffect(() => {
+    // Update component based on activeTab
     switch (activeTab) {
       case 'dashboard':
-        // Import dynamically to avoid module resolution issues
-        const AdminHomeTab = require('./AdminHomeTab').default;
-        return <AdminHomeTab user={user} />;
+        setCurrentTab(<AdminHomeTab />);
+        break;
       case 'requests':
-        const AdminRequestsTab = require('./AdminRequestsTab').default;
-        return <AdminRequestsTab user={user} />;
+        setCurrentTab(<AdminRequestsTab />);
+        break;
       case 'departments':
-        const AdminDepartmentsTab = require('./AdminDepartmentsTab').default;
-        return <AdminDepartmentsTab user={user} />;
+        setCurrentTab(<AdminDepartmentsTab />);
+        break;
       case 'projects':
-        const AdminProjectsTab = require('./AdminProjectsTab').default;
-        return <AdminProjectsTab user={user} />;
+        setCurrentTab(<AdminProjectsTab />);
+        break;
       case 'users':
-        const AdminUsersTab = require('./AdminUsersTab').default;
-        return <AdminUsersTab user={user} />;
+        setCurrentTab(<AdminUsersTab />);
+        break;
       default:
-        const DefaultAdminHomeTab = require('./AdminHomeTab').default;
-        return <DefaultAdminHomeTab user={user} />;
+        setCurrentTab(<AdminHomeTab />);
     }
-  };
+  }, [activeTab]);
 
   return (
     <div className="h-full overflow-auto">
-      {renderContent()}
+      {currentTab}
     </div>
   );
 }

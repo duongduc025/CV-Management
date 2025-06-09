@@ -37,7 +37,7 @@ axios.interceptors.response.use(
           if (payload.exp < currentTime) {
             throw new Error('Refresh token is expired');
           }
-        } catch (tokenParseError) {
+        } catch {
           throw new Error('Invalid refresh token format');
         }
 
@@ -273,7 +273,7 @@ export const getCurrentUser = async (): Promise<User> => {
         setAuthToken(null);
         throw new Error('Token is expired');
       }
-    } catch (tokenParseError) {
+    } catch {
       // Invalid token format
       localStorage.removeItem('token');
       localStorage.removeItem('refreshToken');

@@ -7,6 +7,7 @@ import { canAccessAdmin } from '@/services/auth';
 import AdminDashboard from '@/components/dashboard/Admin';
 import RoleSwitcherNavbar from '@/components/RoleSwitcherNavbar';
 import Link from 'next/link';
+import LoadingSpinner from '@/components/LoadingSpinner';
 
 export default function AdminPage() {
   const { user, loading } = useAuth();
@@ -29,8 +30,8 @@ export default function AdminPage() {
   if (loading) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center">
-        <p className="text-lg">Loading admin panel...</p>
-      </div>
+        <LoadingSpinner size="lg" />
+        </div>
     );
   }
 
@@ -59,7 +60,7 @@ export default function AdminPage() {
     <div className="min-h-screen bg-gray-50">
       <RoleSwitcherNavbar />
       <main className="w-full">
-        <AdminDashboard user={user} />
+        <AdminDashboard />
       </main>
     </div>
   );

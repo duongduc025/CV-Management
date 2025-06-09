@@ -1,34 +1,17 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { User } from '@/services/auth';
-import { getSentCVUpdateRequestsPM, cancelCVUpdateRequest } from '@/services/cv';
-import { Clock, CheckCircle, XCircle, AlertCircle, FileText, X, Loader2 } from 'lucide-react';
+import { getSentCVUpdateRequestsPM, cancelCVUpdateRequest, SentCVUpdateRequest } from '@/services/cv';
+import { AlertCircle, FileText, X, Loader2, Search } from 'lucide-react';
 import { toast } from 'sonner';
 
-interface PMCVRequestsTabProps {
-  user: User;
-}
-
-interface SentCVRequest {
-  id: string;
-  cv_id: string;
-  requested_by: string;
-  requested_at: string;
-  status: 'Đang yêu cầu' | 'Đã xử lý' | 'Đã huỷ';
-  is_read: boolean;
-  employee_name: string;
-  employee_code: string;
-  department: string;
-  content?: string;
-}
-
-export default function PMCVRequestsTab({ user }: PMCVRequestsTabProps) {
-  const [sentRequests, setSentRequests] = useState<SentCVRequest[]>([]);
+export default function PMCVRequestsTab() {
+  const [sentRequests, setSentRequests] = useState<SentCVUpdateRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [cancellingRequest, setCancellingRequest] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     loadSentRequests();
@@ -39,10 +22,11 @@ export default function PMCVRequestsTab({ user }: PMCVRequestsTabProps) {
       setLoading(true);
       setError(null);
       const requests = await getSentCVUpdateRequestsPM();
-      setSentRequests(requests);
+      setSentRequests(requests || []);
     } catch (err) {
       console.error('Error loading sent CV requests:', err);
       setError(err instanceof Error ? err.message : 'Có lỗi xảy ra khi tải danh sách yêu cầu');
+      setSentRequests([]); // Ensure sentRequests is always an array
     } finally {
       setLoading(false);
     }
@@ -69,34 +53,22 @@ export default function PMCVRequestsTab({ user }: PMCVRequestsTabProps) {
     }
   };
 
-  const getStatusIcon = (status: string) => {
+
+
+  const getStatusBadgeClass = (status: string) => {
     switch (status) {
-      case 'Đang yêu cầu':
-        return <Clock className="h-4 w-4 text-yellow-500" />;
       case 'Đã xử lý':
-        return <CheckCircle className="h-4 w-4 text-green-500" />;
+        return 'bg-green-100 text-green-800';
+      case 'Đang yêu cầu':
+        return 'bg-yellow-100 text-yellow-800';
       case 'Đã huỷ':
-        return <XCircle className="h-4 w-4 text-red-500" />;
+        return 'bg-gray-100 text-gray-800';
       default:
-        return <AlertCircle className="h-4 w-4 text-gray-500" />;
+        return 'bg-gray-100 text-gray-800';
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    const baseClasses = "px-2 py-1 rounded-full text-xs font-medium";
-    switch (status) {
-      case 'Đang yêu cầu':
-        return `${baseClasses} bg-yellow-100 text-yellow-800`;
-      case 'Đã xử lý':
-        return `${baseClasses} bg-green-100 text-green-800`;
-      case 'Đã huỷ':
-        return `${baseClasses} bg-red-100 text-red-800`;
-      default:
-        return `${baseClasses} bg-gray-100 text-gray-800`;
-    }
-  };
-
-  const formatDate = (dateString: string) => {
+  const formatDateTime = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleString('vi-VN', {
       year: 'numeric',
@@ -107,10 +79,12 @@ export default function PMCVRequestsTab({ user }: PMCVRequestsTabProps) {
     });
   };
 
-  // Filter requests based on status
-  const filteredRequests = sentRequests.filter(request => {
+  // Filter requests based on status and search term
+  const filteredRequests = (sentRequests || []).filter(request => {
+    const matchesSearch = ((request.employee_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         (request.employee_code || '').toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesStatus = !statusFilter || request.status === statusFilter;
-    return matchesStatus;
+    return matchesSearch && matchesStatus;
   });
 
   if (loading) {
@@ -124,148 +98,157 @@ export default function PMCVRequestsTab({ user }: PMCVRequestsTabProps) {
   }
 
   return (
-    <div className="w-full p-6 space-y-6">
+    <div className="p-6 space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Yêu cầu cập nhật CV</h1>
-        <p className="text-gray-600 mt-1">
-          Danh sách các yêu cầu cập nhật CV bạn đã gửi
-        </p>
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold text-gray-900">Yêu cầu cập nhật CV</h2>
+        <div className="text-sm text-gray-600 mt-1">Trang chủ / Yêu cầu cập nhật</div>
       </div>
 
-      {/* Status Filter */}
-      <div className="flex justify-end">
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-red-500 focus:border-red-500"
-        >
-          <option value="">Tất cả trạng thái</option>
-          <option value="Đang yêu cầu">Đang yêu cầu</option>
-          <option value="Đã xử lý">Đã xử lý</option>
-          <option value="Đã huỷ">Đã huỷ</option>
-        </select>
-      </div>
+      {/* Content Card */}
+      <div className="bg-white rounded-lg shadow-md">
+        {/* Search and Filters */}
+        <div className="p-6 border-b border-gray-200">
+          <div className="flex flex-col lg:flex-row gap-4">
+            {/* Search Box */}
+            <div className="flex-1 relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Search className="h-5 w-5 text-gray-400" />
+              </div>
+              <input
+                type="text"
+                placeholder="Tìm kiếm theo tên nhân viên hoặc mã nhân viên..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-red-500 focus:border-red-500"
+              />
+            </div>
 
-      {/* Error Message */}
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <div className="flex items-center">
-            <AlertCircle className="h-5 w-5 text-red-400 mr-2" />
-            <p className="text-red-700">{error}</p>
+            {/* Status Filter */}
+            <div className="lg:w-48">
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="block w-full px-3 py-2 border border-gray-300 rounded-md leading-5 bg-white focus:outline-none focus:ring-1 focus:ring-red-500 focus:border-red-500"
+              >
+                <option value="">Tất cả trạng thái</option>
+                <option value="Đang yêu cầu">Đang yêu cầu</option>
+                <option value="Đã xử lý">Đã xử lý</option>
+                <option value="Đã huỷ">Đã huỷ</option>
+              </select>
+            </div>
           </div>
-          <button
-            onClick={loadSentRequests}
-            className="mt-2 text-red-600 hover:text-red-800 underline text-sm"
-          >
-            Thử lại
-          </button>
         </div>
-      )}
 
-      {/* Requests Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Nhân viên
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Mã nhân viên
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Phòng ban
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Thời gian gửi
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Trạng thái
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Nội dung
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Hành động
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredRequests.length === 0 ? (
+        {/* Error Message */}
+        {error && (
+          <div className="p-6 bg-red-50 border border-red-200 rounded-lg">
+            <div className="flex items-center">
+              <AlertCircle className="h-5 w-5 text-red-400 mr-2" />
+              <p className="text-red-700">{error}</p>
+            </div>
+            <button
+              onClick={loadSentRequests}
+              className="mt-2 text-red-600 hover:text-red-800 underline text-sm"
+            >
+              Thử lại
+            </button>
+          </div>
+        )}
+
+        {/* Requests Table */}
+        <div className="overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
-                    <FileText className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                    <p className="text-lg font-medium">
-                      {sentRequests.length === 0 ? 'Chưa có yêu cầu nào' : 'Không có yêu cầu nào phù hợp với bộ lọc'}
-                    </p>
-                    <p className="text-sm">
-                      {sentRequests.length === 0 ? 'Bạn chưa gửi yêu cầu cập nhật CV nào.' : 'Thử thay đổi bộ lọc để xem kết quả khác.'}
-                    </p>
-                  </td>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Nhân viên
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Mã nhân viên
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Phòng ban
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Nội dung
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Thời gian gửi
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Trạng thái
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Thao tác
+                  </th>
                 </tr>
-              ) : (
-                filteredRequests.map((request) => (
-                  <tr key={request.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">
-                        {request.employee_name}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        {request.employee_code}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{request.department}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        {formatDate(request.requested_at)}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center space-x-2">
-                        {getStatusIcon(request.status)}
-                        <span className={getStatusBadge(request.status)}>
-                          {request.status}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm text-gray-900 max-w-xs truncate">
-                        {request.content || 'Không có nội dung'}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex space-x-2">
-                        {request.status === 'Đang yêu cầu' && (
-                          <button
-                            className="p-1 text-red-600 hover:text-red-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            title="Hủy yêu cầu"
-                            disabled={cancellingRequest === request.id}
-                            onClick={() => handleCancelRequest(request.id)}
-                          >
-                            {cancellingRequest === request.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <X className="h-4 w-4" />
-                            )}
-                          </button>
-                        )}
-                      </div>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {filteredRequests.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
+                      <FileText className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                      <p className="text-lg font-medium">
+                        {(sentRequests || []).length === 0 ? 'Chưa có yêu cầu nào' : 'Không có yêu cầu nào phù hợp với bộ lọc'}
+                      </p>
+                      <p className="text-sm">
+                        {(sentRequests || []).length === 0 ? 'Bạn chưa gửi yêu cầu cập nhật CV nào.' : 'Thử thay đổi bộ lọc để xem kết quả khác.'}
+                      </p>
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : (
+                  filteredRequests.map((request) => (
+                    <tr key={request.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {request.employee_name || 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {request.employee_code || 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {request.department || 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-500 max-w-xs">
+                        <div className="truncate" title={request.content || ''}>
+                          {request.content || 'Không có nội dung'}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {formatDateTime(request.requested_at)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusBadgeClass(request.status)}`}>
+                          {request.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <div className="flex space-x-2">
+                          {request.status !== 'Đã huỷ' && request.status !== 'Đã xử lý' && (
+                            <button
+                              className="p-1 text-red-600 hover:text-red-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              title="Hủy yêu cầu"
+                              disabled={cancellingRequest === request.id}
+                              onClick={() => handleCancelRequest(request.id)}
+                            >
+                              {cancellingRequest === request.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <X className="h-4 w-4" />
+                              )}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
-
-
     </div>
   );
 }

@@ -35,7 +35,7 @@ export default function MyAccountPage() {
   if (loading) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center">
-        <p className="text-lg">Loading account information...</p>
+        <p className="text-lg">Đang tải thông tin tài khoản...</p>
       </div>
     );
   }
@@ -53,20 +53,20 @@ export default function MyAccountPage() {
           <div className="px-4 py-6 sm:px-0">
             {/* Header */}
             <div className="mb-8">
-              <h1 className="text-3xl font-bold text-gray-900">My Account</h1>
+              <h1 className="text-3xl font-bold text-gray-900">Tài khoản của tôi</h1>
               <p className="mt-2 text-gray-600">
-                View and manage your account information and settings.
+                Xem và quản lý thông tin tài khoản và cài đặt của bạn.
               </p>
             </div>
 
             {/* Account Information */}
             <Card className="mb-6">
-              <div className="px-4 py-5 sm:px-6 bg-blue-600 text-white rounded-t-lg">
+              <div className="px-4 py-5 sm:px-6 bg-red-600 text-white rounded-t-lg">
                 <h3 className="text-lg leading-6 font-medium">
-                  Account Information
+                  Thông tin tài khoản
                 </h3>
-                <p className="mt-1 max-w-2xl text-sm text-blue-100">
-                  Your personal details and work information
+                <p className="mt-1 max-w-2xl text-sm text-red-100">
+                  Thông tin cá nhân và công việc của bạn
                 </p>
               </div>
 
@@ -74,7 +74,7 @@ export default function MyAccountPage() {
                 <dl>
                   <div className="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                     <dt className="text-sm font-medium text-gray-500">
-                      Full name
+                      Họ và tên
                     </dt>
                     <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
                       {user.full_name}
@@ -83,7 +83,7 @@ export default function MyAccountPage() {
 
                   <div className="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                     <dt className="text-sm font-medium text-gray-500">
-                      Employee Code
+                      Mã nhân viên
                     </dt>
                     <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
                       {user.employee_code}
@@ -92,7 +92,7 @@ export default function MyAccountPage() {
 
                   <div className="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                     <dt className="text-sm font-medium text-gray-500">
-                      Email address
+                      Địa chỉ email
                     </dt>
                     <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
                       {user.email}
@@ -101,19 +101,19 @@ export default function MyAccountPage() {
 
                   <div className="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                     <dt className="text-sm font-medium text-gray-500">
-                      Department
+                      Phòng ban
                     </dt>
                     <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                      {user.department?.name || 'Not assigned'}
+                      {user.department?.name || 'Chưa được phân công'}
                     </dd>
                   </div>
 
                   <div className="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
                     <dt className="text-sm font-medium text-gray-500">
-                      Roles
+                      Vai trò
                     </dt>
                     <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                      {user.roles?.map(role => role.name).join(', ') || 'No roles assigned'}
+                      {user.roles?.map(role => role.name).join(', ') || 'Chưa có vai trò'}
                     </dd>
                   </div>
                 </dl>
@@ -122,39 +122,29 @@ export default function MyAccountPage() {
 
             {/* Account Actions */}
             <Card className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Account Actions</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Thao tác tài khoản</h3>
               <div className="space-y-4">
                 <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                   <div>
-                    <h4 className="text-sm font-medium text-gray-900">Change Password</h4>
-                    <p className="text-sm text-gray-600">Update your account password for security</p>
+                    <h4 className="text-sm font-medium text-gray-900">Cập nhật hồ sơ</h4>
+                    <p className="text-sm text-gray-600">Chỉnh sửa thông tin cá nhân của bạn</p>
                   </div>
                   <Button variant="outline" disabled>
-                    Coming Soon
-                  </Button>
-                </div>
-
-                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-900">Update Profile</h4>
-                    <p className="text-sm text-gray-600">Edit your personal information</p>
-                  </div>
-                  <Button variant="outline" disabled>
-                    Coming Soon
+                    Liên hệ admin
                   </Button>
                 </div>
 
                 <div className="flex items-center justify-between p-4 bg-red-50 rounded-lg border border-red-200">
                   <div>
-                    <h4 className="text-sm font-medium text-red-900">Sign Out</h4>
-                    <p className="text-sm text-red-600">Sign out of your account</p>
+                    <h4 className="text-sm font-medium text-red-900">Đăng xuất</h4>
+                    <p className="text-sm text-red-600">Đăng xuất khỏi tài khoản của bạn</p>
                   </div>
-                  <Button 
-                    variant="destructive" 
+                  <Button
+                    variant="destructive"
                     onClick={handleLogout}
                     disabled={isLoggingOut}
                   >
-                    {isLoggingOut ? 'Signing Out...' : 'Sign Out'}
+                    {isLoggingOut ? 'Đang đăng xuất...' : 'Đăng xuất'}
                   </Button>
                 </div>
               </div>
