@@ -47,7 +47,7 @@ CREATE TABLE cv_details (
 -- Bảng cv_education
 CREATE TABLE cv_education (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    cv_id UUID REFERENCES cv_details(cv_id) ON DELETE CASCADE,
+    cv_id UUID REFERENCES cv(id) ON DELETE CASCADE,
     organization TEXT NOT NULL,
     degree TEXT,
     major TEXT,
@@ -57,7 +57,7 @@ CREATE TABLE cv_education (
 -- Bảng cv_courses
 CREATE TABLE cv_courses (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    cv_id UUID REFERENCES cv_details(cv_id) ON DELETE CASCADE,
+    cv_id UUID REFERENCES cv(id) ON DELETE CASCADE,
     course_name TEXT NOT NULL,
     organization TEXT,
     finish_date DATE
@@ -66,7 +66,7 @@ CREATE TABLE cv_courses (
 -- Bảng cv_skills
 CREATE TABLE cv_skills (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    cv_id UUID REFERENCES cv_details(cv_id) ON DELETE CASCADE,
+    cv_id UUID REFERENCES cv(id) ON DELETE CASCADE,
     skill_name TEXT NOT NULL,
     description TEXT
 );
