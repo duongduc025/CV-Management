@@ -125,6 +125,9 @@ func main() {
 			// Admin can delete any user's CV by user ID
 			cvs.DELETE("/user/:user_id", middleware.AdminOnly(), handlers.DeleteCV)
 
+			// Admin can update any user's CV by user ID
+			cvs.PUT("/user/:user_id", middleware.AdminOnly(), handlers.AdminUpdateCV)
+
 			// BUL and PM can view any CV by user ID
 			cvs.GET("/user/:user_id", middleware.AdminOrPMOrBUL(), handlers.GetCVByUserID)
 		}

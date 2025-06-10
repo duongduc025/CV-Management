@@ -4,9 +4,9 @@ import { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import { User, getDepartments, getRoles, type Department, type Role } from '@/services/auth';
 import { getUsers, getUsersPaginated, deleteUser, updateUser, type PaginatedUsersResponse } from '@/services/user';
-import { getUserCVByUserId, CV, createCVUpdateRequest, deleteCVByUserId } from '@/services/cv';
+import { getUserCVByUserId, CV, createCVUpdateRequest, deleteCVByUserId, adminUpdateCV, type CVCreateRequest } from '@/services/cv';
 import { toast } from 'sonner';
-import { Eye, Edit, MessageSquare, Trash2 } from 'lucide-react';
+import { Eye, Edit, MessageSquare, Trash2, Save, X, Plus } from 'lucide-react';
 
 interface UserFormData {
   employeeCode: string;
@@ -31,6 +31,23 @@ export default function AdminUsersTab() {
   const [requestingUpdate, setRequestingUpdate] = useState(false);
   const [deletingCV, setDeletingCV] = useState(false);
   const [showCVPanel, setShowCVPanel] = useState(false);
+  const [editingCV, setEditingCV] = useState(false);
+  const [savingCV, setSavingCV] = useState(false);
+  const [cvEditFormData, setCvEditFormData] = useState<CVCreateRequest>({
+    full_name: '',
+    job_title: '',
+    summary: '',
+    birthday: '',
+    gender: '',
+    email: '',
+    phone: '',
+    address: '',
+    cv_path: '',
+    portrait_path: '',
+    education: [],
+    courses: [],
+    skills: [],
+  });
   const [showMessageDialog, setShowMessageDialog] = useState(false);
   const [updateMessage, setUpdateMessage] = useState('');
   const [selectedUserForUpdate, setSelectedUserForUpdate] = useState<User | null>(null);
@@ -350,6 +367,140 @@ export default function AdminUsersTab() {
     } finally {
       setDeletingCV(false);
     }
+  };
+
+  const handleEditCV = () => {
+    if (!selectedUserCV || !selectedUser) return;
+
+    // Populate form with existing CV data
+    const details = selectedUserCV.details;
+
+    // Format birthday for HTML date input (YYYY-MM-DD)
+    let formattedBirthday = '';
+    if (details?.birthday) {
+      try {
+        const date = new Date(details.birthday);
+        if (!isNaN(date.getTime())) {
+          formattedBirthday = date.toISOString().split('T')[0]; // YYYY-MM-DD format
+        }
+      } catch {
+        console.warn('Invalid birthday format:', details.birthday);
+      }
+    }
+
+    // Format finish dates for courses
+    const formattedCourses = details?.courses?.map(course => {
+      let formattedFinishDate = '';
+      if (course.finish_date) {
+        try {
+          const date = new Date(course.finish_date);
+          if (!isNaN(date.getTime())) {
+            formattedFinishDate = date.toISOString().split('T')[0]; // YYYY-MM-DD format
+          }
+        } catch {
+          console.warn('Invalid finish date format:', course.finish_date);
+        }
+      }
+      return {
+        course_name: course.course_name,
+        organization: course.organization || '',
+        finish_date: formattedFinishDate
+      };
+    }) || [];
+
+    setCvEditFormData({
+      full_name: details?.full_name || '',
+      job_title: details?.job_title || '',
+      summary: details?.summary || '',
+      birthday: formattedBirthday,
+      gender: details?.gender || '',
+      email: details?.email || '',
+      phone: details?.phone || '',
+      address: details?.address || '',
+      cv_path: details?.cv_path || '',
+      portrait_path: details?.portrait_path || '',
+      education: details?.education?.map(edu => ({
+        organization: edu.organization,
+        degree: edu.degree || '',
+        major: edu.major || '',
+        graduation_year: edu.graduation_year || undefined
+      })) || [],
+      courses: formattedCourses,
+      skills: details?.skills?.map(skill => ({
+        skill_name: skill.skill_name,
+        description: skill.description || ''
+      })) || [],
+    });
+
+    setEditingCV(true);
+  };
+
+  const handleSaveCV = async () => {
+    if (!selectedUser) return;
+
+    try {
+      setSavingCV(true);
+      console.log(`Admin saving CV for user: ${selectedUser.id}`);
+
+      // Prepare the data, ensuring empty strings are handled properly
+      const cvDataToSend = {
+        ...cvEditFormData,
+        // Only include birthday if it's not empty
+        birthday: cvEditFormData.birthday || '',
+        // Ensure arrays are not null
+        education: cvEditFormData.education || [],
+        courses: cvEditFormData.courses || [],
+        skills: cvEditFormData.skills || [],
+      };
+
+      console.log('CV data being sent:', cvDataToSend);
+
+      // Call the admin update CV API
+      const result = await adminUpdateCV(selectedUser.id, cvDataToSend);
+
+      toast.success(result.message);
+
+      // Update the displayed CV with the new data
+      const cvData: CV = {
+        ...result.data.cv,
+        details: result.data.details
+      };
+      setSelectedUserCV(cvData);
+
+      // Update CV status in the users list
+      setUsersCVStatus(prev => ({
+        ...prev,
+        [selectedUser.id]: cvData.status || 'Đã cập nhật'
+      }));
+
+      setEditingCV(false);
+      console.log('CV updated successfully by admin');
+    } catch (error) {
+      console.error('Failed to update CV:', error);
+      toast.error(error instanceof Error ? error.message : 'Không thể cập nhật CV');
+    } finally {
+      setSavingCV(false);
+    }
+  };
+
+  const handleCancelEditCV = () => {
+    setEditingCV(false);
+    // Reset form data
+    setCvEditFormData({
+      full_name: '',
+      job_title: '',
+      summary: '',
+      birthday: '',
+      gender: '',
+      email: '',
+      phone: '',
+      address: '',
+      cv_path: '',
+      portrait_path: '',
+      education: [],
+      courses: [],
+      skills: [],
+    });
   };
 
   // Delete user functions
@@ -1161,10 +1312,50 @@ export default function AdminUsersTab() {
                     </a>
                   )}
 
+                  {/* Edit CV Button */}
+                  {!editingCV ? (
+                    <button
+                      onClick={handleEditCV}
+                      disabled={!selectedUserCV || isCVEmpty(selectedUserCV)}
+                      className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 text-sm font-medium shadow-md hover:shadow-lg transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-md"
+                    >
+                      <Edit className="w-4 h-4 mr-2" />
+                      Chỉnh sửa CV
+                    </button>
+                  ) : (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleSaveCV}
+                        disabled={savingCV}
+                        className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all duration-200 text-sm font-medium shadow-md hover:shadow-lg transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-md"
+                      >
+                        {savingCV ? (
+                          <div className="flex items-center">
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                            Đang lưu...
+                          </div>
+                        ) : (
+                          <>
+                            <Save className="w-4 h-4 mr-2" />
+                            Lưu CV
+                          </>
+                        )}
+                      </button>
+                      <button
+                        onClick={handleCancelEditCV}
+                        disabled={savingCV}
+                        className="inline-flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-all duration-200 text-sm font-medium shadow-md hover:shadow-lg transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-md"
+                      >
+                        <X className="w-4 h-4 mr-2" />
+                        Hủy
+                      </button>
+                    </div>
+                  )}
+
                   {/* Request Update Button */}
                   <button
                     onClick={() => handleRequestCVUpdate(selectedUser)}
-                    disabled={requestingUpdate}
+                    disabled={requestingUpdate || editingCV}
                     className="inline-flex items-center px-4 py-2 bg-[#E60012] text-white rounded-lg hover:bg-[#cc0010] transition-all duration-200 text-sm font-medium shadow-md hover:shadow-lg transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-md"
                   >
                     {requestingUpdate ? (
@@ -1275,8 +1466,316 @@ export default function AdminUsersTab() {
               </div>
             </div>
 
+            {/* CV Edit Form */}
+            {editingCV && selectedUserCV && !loadingCV && !cvError && (
+              <div className="max-w-4xl mx-auto bg-white shadow-2xl border border-gray-200 p-6">
+                <h3 className="text-xl font-bold text-gray-900 mb-6">Chỉnh sửa CV - {selectedUser.full_name}</h3>
+
+                {/* Basic Information */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Họ và tên</label>
+                    <input
+                      type="text"
+                      value={cvEditFormData.full_name}
+                      onChange={(e) => setCvEditFormData(prev => ({ ...prev, full_name: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#E60012] focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Chức danh</label>
+                    <input
+                      type="text"
+                      value={cvEditFormData.job_title}
+                      onChange={(e) => setCvEditFormData(prev => ({ ...prev, job_title: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#E60012] focus:border-transparent"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Tóm tắt</label>
+                    <textarea
+                      value={cvEditFormData.summary}
+                      onChange={(e) => setCvEditFormData(prev => ({ ...prev, summary: e.target.value }))}
+                      rows={4}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#E60012] focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Ngày sinh</label>
+                    <input
+                      type="date"
+                      value={cvEditFormData.birthday}
+                      onChange={(e) => setCvEditFormData(prev => ({ ...prev, birthday: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#E60012] focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Giới tính</label>
+                    <select
+                      value={cvEditFormData.gender}
+                      onChange={(e) => setCvEditFormData(prev => ({ ...prev, gender: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#E60012] focus:border-transparent"
+                    >
+                      <option value="">Chọn giới tính</option>
+                      <option value="Nam">Nam</option>
+                      <option value="Nữ">Nữ</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                    <input
+                      type="email"
+                      value={cvEditFormData.email}
+                      onChange={(e) => setCvEditFormData(prev => ({ ...prev, email: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#E60012] focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Số điện thoại</label>
+                    <input
+                      type="tel"
+                      value={cvEditFormData.phone}
+                      onChange={(e) => setCvEditFormData(prev => ({ ...prev, phone: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#E60012] focus:border-transparent"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Địa chỉ</label>
+                    <input
+                      type="text"
+                      value={cvEditFormData.address}
+                      onChange={(e) => setCvEditFormData(prev => ({ ...prev, address: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#E60012] focus:border-transparent"
+                    />
+                  </div>
+                </div>
+
+                {/* Education Section */}
+                <div className="mb-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-lg font-semibold text-gray-900">Học vấn</h4>
+                    <button
+                      type="button"
+                      onClick={() => setCvEditFormData(prev => ({
+                        ...prev,
+                        education: [...(prev.education || []), { organization: '', degree: '', major: '', graduation_year: undefined }]
+                      }))}
+                      className="inline-flex items-center px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Thêm học vấn
+                    </button>
+                  </div>
+                  {cvEditFormData.education?.map((edu, index) => (
+                    <div key={index} className="border border-gray-200 rounded-lg p-4 mb-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Trường/Tổ chức</label>
+                          <input
+                            type="text"
+                            value={edu.organization}
+                            onChange={(e) => {
+                              const newEducation = [...(cvEditFormData.education || [])];
+                              newEducation[index] = { ...newEducation[index], organization: e.target.value };
+                              setCvEditFormData(prev => ({ ...prev, education: newEducation }));
+                            }}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#E60012] focus:border-transparent"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Bằng cấp</label>
+                          <input
+                            type="text"
+                            value={edu.degree || ''}
+                            onChange={(e) => {
+                              const newEducation = [...(cvEditFormData.education || [])];
+                              newEducation[index] = { ...newEducation[index], degree: e.target.value };
+                              setCvEditFormData(prev => ({ ...prev, education: newEducation }));
+                            }}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#E60012] focus:border-transparent"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Chuyên ngành</label>
+                          <input
+                            type="text"
+                            value={edu.major || ''}
+                            onChange={(e) => {
+                              const newEducation = [...(cvEditFormData.education || [])];
+                              newEducation[index] = { ...newEducation[index], major: e.target.value };
+                              setCvEditFormData(prev => ({ ...prev, education: newEducation }));
+                            }}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#E60012] focus:border-transparent"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Năm tốt nghiệp</label>
+                          <input
+                            type="number"
+                            value={edu.graduation_year || ''}
+                            onChange={(e) => {
+                              const newEducation = [...(cvEditFormData.education || [])];
+                              newEducation[index] = { ...newEducation[index], graduation_year: e.target.value ? parseInt(e.target.value) : undefined };
+                              setCvEditFormData(prev => ({ ...prev, education: newEducation }));
+                            }}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#E60012] focus:border-transparent"
+                          />
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newEducation = cvEditFormData.education?.filter((_, i) => i !== index) || [];
+                          setCvEditFormData(prev => ({ ...prev, education: newEducation }));
+                        }}
+                        className="mt-3 inline-flex items-center px-3 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors text-sm"
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Xóa
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Courses Section */}
+                <div className="mb-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-lg font-semibold text-gray-900">Khóa học</h4>
+                    <button
+                      type="button"
+                      onClick={() => setCvEditFormData(prev => ({
+                        ...prev,
+                        courses: [...(prev.courses || []), { course_name: '', organization: '', finish_date: '' }]
+                      }))}
+                      className="inline-flex items-center px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Thêm khóa học
+                    </button>
+                  </div>
+                  {cvEditFormData.courses?.map((course, index) => (
+                    <div key={index} className="border border-gray-200 rounded-lg p-4 mb-4">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Tên khóa học</label>
+                          <input
+                            type="text"
+                            value={course.course_name}
+                            onChange={(e) => {
+                              const newCourses = [...(cvEditFormData.courses || [])];
+                              newCourses[index] = { ...newCourses[index], course_name: e.target.value };
+                              setCvEditFormData(prev => ({ ...prev, courses: newCourses }));
+                            }}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#E60012] focus:border-transparent"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Tổ chức</label>
+                          <input
+                            type="text"
+                            value={course.organization || ''}
+                            onChange={(e) => {
+                              const newCourses = [...(cvEditFormData.courses || [])];
+                              newCourses[index] = { ...newCourses[index], organization: e.target.value };
+                              setCvEditFormData(prev => ({ ...prev, courses: newCourses }));
+                            }}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#E60012] focus:border-transparent"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Ngày hoàn thành</label>
+                          <input
+                            type="date"
+                            value={course.finish_date || ''}
+                            onChange={(e) => {
+                              const newCourses = [...(cvEditFormData.courses || [])];
+                              newCourses[index] = { ...newCourses[index], finish_date: e.target.value };
+                              setCvEditFormData(prev => ({ ...prev, courses: newCourses }));
+                            }}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#E60012] focus:border-transparent"
+                          />
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newCourses = cvEditFormData.courses?.filter((_, i) => i !== index) || [];
+                          setCvEditFormData(prev => ({ ...prev, courses: newCourses }));
+                        }}
+                        className="mt-3 inline-flex items-center px-3 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors text-sm"
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Xóa
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Skills Section */}
+                <div className="mb-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-lg font-semibold text-gray-900">Kỹ năng</h4>
+                    <button
+                      type="button"
+                      onClick={() => setCvEditFormData(prev => ({
+                        ...prev,
+                        skills: [...(prev.skills || []), { skill_name: '', description: '' }]
+                      }))}
+                      className="inline-flex items-center px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Thêm kỹ năng
+                    </button>
+                  </div>
+                  {cvEditFormData.skills?.map((skill, index) => (
+                    <div key={index} className="border border-gray-200 rounded-lg p-4 mb-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Tên kỹ năng</label>
+                          <input
+                            type="text"
+                            value={skill.skill_name}
+                            onChange={(e) => {
+                              const newSkills = [...(cvEditFormData.skills || [])];
+                              newSkills[index] = { ...newSkills[index], skill_name: e.target.value };
+                              setCvEditFormData(prev => ({ ...prev, skills: newSkills }));
+                            }}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#E60012] focus:border-transparent"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Mô tả</label>
+                          <input
+                            type="text"
+                            value={skill.description || ''}
+                            onChange={(e) => {
+                              const newSkills = [...(cvEditFormData.skills || [])];
+                              newSkills[index] = { ...newSkills[index], description: e.target.value };
+                              setCvEditFormData(prev => ({ ...prev, skills: newSkills }));
+                            }}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#E60012] focus:border-transparent"
+                          />
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newSkills = cvEditFormData.skills?.filter((_, i) => i !== index) || [];
+                          setCvEditFormData(prev => ({ ...prev, skills: newSkills }));
+                        }}
+                        className="mt-3 inline-flex items-center px-3 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors text-sm"
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Xóa
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* CV Display Section */}
-            {selectedUserCV && !loadingCV && !cvError && (
+            {!editingCV && selectedUserCV && !loadingCV && !cvError && (
               <div className="max-w-4xl mx-auto bg-white shadow-2xl border border-gray-200">
                 {/* CV Header Section */}
                 <div className="bg-white border-b border-red-100 px-8 pt-6 pb-4">

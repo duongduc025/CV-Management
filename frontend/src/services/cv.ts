@@ -179,6 +179,26 @@ export const deleteCVByUserId = async (userId: string): Promise<{message: string
   }
 };
 
+// Admin update CV for any user (Admin only)
+export const adminUpdateCV = async (userId: string, cvData: CVCreateRequest): Promise<{data: {cv: CV, details: CVDetail}, message: string}> => {
+  try {
+    setAuthToken(); // Ensure auth token is set
+    console.log('Admin updating CV for user:', userId, 'with data:', cvData);
+    const response = await axios.put(`${API_URL}/cv/user/${userId}`, cvData);
+    console.log('Admin CV update response:', response.data);
+    return {
+      data: response.data.data, // This contains {cv: ..., details: ...}
+      message: response.data.message
+    };
+  } catch (error) {
+    console.error('Admin CV update error:', error);
+    if (axios.isAxiosError(error) && error.response) {
+      throw new Error(error.response.data.message || 'Failed to update CV');
+    }
+    throw new Error('Failed to update CV. Please try again.');
+  }
+};
+
 // Alias for backward compatibility
 export const getCVByUserID = getUserCVByUserId;
 export const getCVById = getUserCVByUserId;

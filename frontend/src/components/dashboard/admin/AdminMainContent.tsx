@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import AdminHomeTab from './AdminHomeTab';
 import AdminRequestsTab from './AdminRequestsTab';
 import AdminDepartmentsTab from './AdminDepartmentsTab';
@@ -13,7 +13,7 @@ interface AdminMainContentProps {
 
 export default function AdminMainContent({ activeTab }: AdminMainContentProps) {
   // Use state to track current component to avoid re-renders
-  const [currentTab, setCurrentTab] = useState<JSX.Element>(<AdminHomeTab />);
+  const [currentTab, setCurrentTab] = useState<React.ReactElement>(<AdminHomeTab />);
   
   useEffect(() => {
     // Update component based on activeTab
