@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { Search, X, Loader2, Plus } from 'lucide-react';
+import { Search, X, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getAllCVUpdateRequestsForAdmin, cancelCVUpdateRequest, AdminCVUpdateRequest } from '@/services/admin';
 

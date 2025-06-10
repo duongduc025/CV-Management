@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { FileText, MessageSquare, CheckCircle, Target, User as UserIcon, Building } from 'lucide-react';
+import { MessageSquare, CheckCircle, Target, User as UserIcon, Building } from 'lucide-react';
 import { getAdminDashboardStats, AdminDashboardStats } from '@/services/admin';
 
 export default function AdminHomeTab() {

@@ -33,7 +33,7 @@
 # your-domain.com {
 #     reverse_proxy app1:8080 app2:8080 app3:8080 {
 #         lb_policy round_robin
-#         health_uri /api/health
+#         health_uri /health
 #         health_interval 30s
 #         health_timeout 5s
 #         header_up X-Forwarded-Proto {scheme}

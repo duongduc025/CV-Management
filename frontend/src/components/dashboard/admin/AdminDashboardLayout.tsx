@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+
 import AdminSidebar from './AdminSidebar';
 import AdminMainContent from './AdminMainContent';
 
@@ -9,8 +9,7 @@ export default function AdminDashboardLayout() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
-  const router = useRouter();
-  const pathname = usePathname();
+
 
   // Handle hash changes and initialize from URL
   useEffect(() => {

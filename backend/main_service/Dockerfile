@@ -1,9 +1,22 @@
 # Backend Main Service Dockerfile
-FROM golang:1.21-alpine AS builder
+# Sử dụng Alpine làm base image
+FROM alpine:latest AS builder
 
+# Cài đặt các công cụ cần thiết
+RUN apk add --no-cache git curl tar
+
+# Tải và cài đặt Go 1.24.3
+WORKDIR /tmp
+RUN curl -LO https://go.dev/dl/go1.24.3.linux-amd64.tar.gz && \
+    tar -C /usr/local -xzf go1.24.3.linux-amd64.tar.gz && \
+    rm go1.24.3.linux-amd64.tar.gz
+ENV PATH="/usr/local/go/bin:${PATH}"
+ENV GOPATH="/go"
+
+# Tiếp tục với build process
 WORKDIR /app
 
-# Install git
+# Cài đặt git
 RUN apk add --no-cache git
 
 # Copy go mod files
@@ -28,6 +41,6 @@ WORKDIR /root/
 COPY --from=builder /app/main .
 
 # Expose port
-EXPOSE 8000
+EXPOSE 8080
 
 CMD ["./main"]

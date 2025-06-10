@@ -8,7 +8,7 @@ WORKDIR /app
 
 # Install dependencies
 COPY package.json package-lock.json* ./
-RUN npm ci
+RUN npm install/' frontend/Dockerfile
 
 # Rebuild the source code only when needed
 FROM base AS builder

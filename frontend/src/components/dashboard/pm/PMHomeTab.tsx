@@ -9,7 +9,7 @@ interface PMHomeTabProps {
   user: User;
 }
 
-export default function PMHomeTab({ user }: PMHomeTabProps) {
+export default function PMHomeTab({ user: _user }: PMHomeTabProps) {
   const [projectInfo, setProjectInfo] = useState<ProjectManagementInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
