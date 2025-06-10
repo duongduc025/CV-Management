@@ -3,42 +3,42 @@ version: '3.8'
 services:
   # PostgreSQL Database
   postgres:
-    image: postgres:15-alpine
+    image: postgres:17-alpine
     container_name: cv-management-db
     environment:
       POSTGRES_DB: cv_management
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: secret
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./backend/main_service/internal/database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
-      - ./backend/main_service/scripts/insert_mock_data.sql:/docker-entrypoint-initdb.d/02-seed.sql
+      # Đã loại bỏ file insert_mock_data.sql
     networks:
       - cv-management-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U root"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # Backend Main Service (Go)
-  backend:
+  # Backend Service Instance 1
+  app1:
     build: ./backend/main_service
-    container_name: cv-management-backend
+    container_name: cv-management-app1
     environment:
       - DB_HOST=postgres
       - DB_PORT=5432
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
+      - DB_USER=root
+      - DB_PASSWORD=secret
       - DB_NAME=cv_management
       - SERVER_PORT=8080
-      - JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
+      - JWT_SECRET=your-super-secret-jwt-key-here-make-it-long-and-secure
       - AI_SERVICE_URL=http://ai-service:8000
-      - ENV=production
-    ports:
-      - "8080:8080"
+      - ENV=development
+    expose:
+      - "8080"
     depends_on:
       postgres:
         condition: service_healthy
@@ -46,6 +46,76 @@ services:
       - cv-management-network
     volumes:
       - ./uploads:/app/uploads
+    restart: unless-stopped
+
+  # Backend Service Instance 2
+  app2:
+    build: ./backend/main_service
+    container_name: cv-management-app2
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=root
+      - DB_PASSWORD=secret
+      - DB_NAME=cv_management
+      - SERVER_PORT=8080
+      - JWT_SECRET=your-super-secret-jwt-key-here-make-it-long-and-secure
+      - AI_SERVICE_URL=http://ai-service:8000
+      - ENV=development
+    expose:
+      - "8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - cv-management-network
+    volumes:
+      - ./uploads:/app/uploads
+    restart: unless-stopped
+
+  # Backend Service Instance 3
+  app3:
+    build: ./backend/main_service
+    container_name: cv-management-app3
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=root
+      - DB_PASSWORD=secret
+      - DB_NAME=cv_management
+      - SERVER_PORT=8080
+      - JWT_SECRET=your-super-secret-jwt-key-here-make-it-long-and-secure
+      - AI_SERVICE_URL=http://ai-service:8000
+      - ENV=development
+    expose:
+      - "8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - cv-management-network
+    volumes:
+      - ./uploads:/app/uploads
+    restart: unless-stopped
+
+  # Caddy Reverse Proxy
+  caddy:
+    image: caddy:2-alpine
+    container_name: cv-management-caddy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+      - caddy_logs:/var/log/caddy
+    depends_on:
+      - app1
+      - app2
+      - app3
+    networks:
+      - cv-management-network
     restart: unless-stopped
 
   # AI Service (Python FastAPI)
@@ -57,6 +127,11 @@ services:
       - AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT}
       - AZURE_OPENAI_DEPLOYMENT_NAME=${AZURE_OPENAI_DEPLOYMENT_NAME}
       - AZURE_OPENAI_API_VERSION=2024-02-15-preview
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=root
+      - DB_PASSWORD=secret
+      - DB_NAME=cv_management
     ports:
       - "8000:8000"
     networks:
@@ -70,12 +145,12 @@ services:
     build: ./frontend
     container_name: cv-management-frontend
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8080/api
-      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=http://localhost/api
+      - NODE_ENV=development
     ports:
       - "3000:3000"
     depends_on:
-      - backend
+      - caddy
     networks:
       - cv-management-network
     restart: unless-stopped
@@ -83,6 +158,9 @@ services:
 volumes:
   postgres_data:
   uploads:
+  caddy_data:
+  caddy_config:
+  caddy_logs:
 
 networks:
   cv-management-network:

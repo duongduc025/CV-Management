@@ -28,7 +28,7 @@ const navigationItems = [
     id: 'members',
     name: 'Quản lý thành viên',
     icon: Users,
-    description: 'Quản lý thành viên nhóm'
+    description: 'Quản lý thành viên'
   },
   {
     id: 'cv-requests',

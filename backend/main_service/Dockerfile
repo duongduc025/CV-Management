@@ -28,6 +28,6 @@ WORKDIR /root/
 COPY --from=builder /app/main .
 
 # Expose port
-EXPOSE 8080
+EXPOSE 8000
 
 CMD ["./main"]

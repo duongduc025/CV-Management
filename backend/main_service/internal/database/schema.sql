@@ -27,8 +27,8 @@ CREATE TABLE users (
 -- Bảng cv
 CREATE TABLE cv (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID UNIQUE REFERENCES users(id),
-    last_updated_by UUID REFERENCES users(id),
+    user_id UUID UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+    last_updated_by UUID REFERENCES users(id) ON DELETE SET NULL,
     last_updated_at TIMESTAMP,
     status VARCHAR(20) NOT NULL CHECK (status IN ('Đã cập nhật', 'Chưa cập nhật', 'Hủy yêu cầu'))
 );
@@ -50,8 +50,8 @@ CREATE TABLE cv_details (
 
 -- Bảng cv_education
 CREATE TABLE cv_education (
-    id UUID PRIMARY KEY,
-    cv_id UUID REFERENCES cv_details(id) ON DELETE CASCADE,
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    cv_id UUID REFERENCES cv_details(cv_id) ON DELETE CASCADE,
     organization TEXT NOT NULL,
     degree TEXT,
     major TEXT,
@@ -60,8 +60,8 @@ CREATE TABLE cv_education (
 
 -- Bảng cv_courses
 CREATE TABLE cv_courses (
-    id UUID PRIMARY KEY,
-    cv_id UUID REFERENCES cv_details(id) ON DELETE CASCADE,
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    cv_id UUID REFERENCES cv_details(cv_id) ON DELETE CASCADE,
     course_name TEXT NOT NULL,
     organization TEXT,
     finish_date DATE
@@ -69,8 +69,8 @@ CREATE TABLE cv_courses (
 
 -- Bảng cv_skills
 CREATE TABLE cv_skills (
-    id UUID PRIMARY KEY,
-    cv_id UUID REFERENCES cv_details(id) ON DELETE CASCADE,
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    cv_id UUID REFERENCES cv_details(cv_id) ON DELETE CASCADE,
     skill_name TEXT NOT NULL,
     description TEXT
 );
