@@ -1,7 +1,3 @@
--- Drop database if exists and create a new one
-DROP DATABASE IF EXISTS cv_management;
-CREATE DATABASE cv_management;
-
 -- Connect to the database
 \c cv_management;
 
