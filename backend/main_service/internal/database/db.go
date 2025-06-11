@@ -13,9 +13,10 @@ var DB *pgxpool.Pool
 
 // InitDB initializes the database connection
 func InitDB() error {
-	// Load environment variables
+	// Load environment variables (optional - fallback to system env vars if .env doesn't exist)
 	if err := godotenv.Load(); err != nil {
-		return fmt.Errorf("error loading .env file: %w", err)
+		fmt.Printf("Warning: .env file not found: %v\n", err)
+		// Continue execution - environment variables might be provided by Docker/system
 	}
 
 	// Get DB connection parameters from env

@@ -14,7 +14,6 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./backend/main_service/internal/database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
-      # Đã loại bỏ file insert_mock_data.sql
     networks:
       - cv-management-network
     healthcheck:
@@ -28,15 +27,19 @@ services:
     build: ./backend/main_service
     container_name: cv-management-app1
     environment:
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_USER=root
-      - DB_PASSWORD=secret
-      - DB_NAME=cv_management
-      - SERVER_PORT=8080
-      - JWT_SECRET=your-super-secret-jwt-key-here-make-it-long-and-secure
-      - AI_SERVICE_URL=http://ai-service:8000
-      - ENV=production
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - SERVER_PORT=${SERVER_PORT}
+      - JWT_SECRET=${JWT_SECRET}
+      - AI_SERVICE_URL=${AI_SERVICE_URL}
+      - ENV=${ENV}
+      - DO_SPACES_KEY=${DO_SPACES_KEY}
+      - DO_SPACES_SECRET=${DO_SPACES_SECRET}
+      - DO_SPACES_ENDPOINT=${DO_SPACES_ENDPOINT}
+      - DO_SPACES_BUCKET=${DO_SPACES_BUCKET}
     expose:
       - "8080"
     depends_on:
@@ -53,15 +56,19 @@ services:
     build: ./backend/main_service
     container_name: cv-management-app2
     environment:
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_USER=root
-      - DB_PASSWORD=secret
-      - DB_NAME=cv_management
-      - SERVER_PORT=8080
-      - JWT_SECRET=your-super-secret-jwt-key-here-make-it-long-and-secure
-      - AI_SERVICE_URL=http://ai-service:8000
-      - ENV=production
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - SERVER_PORT=${SERVER_PORT}
+      - JWT_SECRET=${JWT_SECRET}
+      - AI_SERVICE_URL=${AI_SERVICE_URL}
+      - ENV=${ENV}
+      - DO_SPACES_KEY=${DO_SPACES_KEY}
+      - DO_SPACES_SECRET=${DO_SPACES_SECRET}
+      - DO_SPACES_ENDPOINT=${DO_SPACES_ENDPOINT}
+      - DO_SPACES_BUCKET=${DO_SPACES_BUCKET}
     expose:
       - "8080"
     depends_on:
@@ -78,15 +85,19 @@ services:
     build: ./backend/main_service
     container_name: cv-management-app3
     environment:
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_USER=root
-      - DB_PASSWORD=secret
-      - DB_NAME=cv_management
-      - SERVER_PORT=8080
-      - JWT_SECRET=your-super-secret-jwt-key-here-make-it-long-and-secure
-      - AI_SERVICE_URL=http://ai-service:8000
-      - ENV=production
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - SERVER_PORT=${SERVER_PORT}
+      - JWT_SECRET=${JWT_SECRET}
+      - AI_SERVICE_URL=${AI_SERVICE_URL}
+      - ENV=${ENV}
+      - DO_SPACES_KEY=${DO_SPACES_KEY}
+      - DO_SPACES_SECRET=${DO_SPACES_SECRET}
+      - DO_SPACES_ENDPOINT=${DO_SPACES_ENDPOINT}
+      - DO_SPACES_BUCKET=${DO_SPACES_BUCKET}
     expose:
       - "8080"
     depends_on:
@@ -145,8 +156,8 @@ services:
     build: ./frontend
     container_name: cv-management-frontend
     environment:
-      - NEXT_PUBLIC_API_URL=http://167.71.199.165/api
-      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+      - NODE_ENV=${NODE_ENV}
     ports:
       - "3000:3000"
     depends_on:
