@@ -3,17 +3,29 @@ package utils
 import (
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 )
 
-// JWT secret key - in production, this should be stored securely
-var jwtSecret = []byte("vdt_cv_management_secret_key")
+// JWT secret keys - loaded from environment variables
+var jwtSecret []byte
+var refreshSecret []byte
 
-// Refresh token secret - should be different from JWT secret
-var refreshSecret = []byte("vdt_cv_management_refresh_secret_key")
+func init() {
+	// Load JWT secrets from environment variables
+	jwtSecretStr := os.Getenv("JWT_SECRET")
+	if jwtSecretStr == "" {
+		// Fallback to hardcoded values for backward compatibility
+		jwtSecretStr = "vdt_cv_management_secret_key"
+	}
+	jwtSecret = []byte(jwtSecretStr)
+
+	// For refresh token, append "_refresh" to make it different
+	refreshSecret = []byte(jwtSecretStr + "_refresh")
+}
 
 // TokenExpiration defines how long a JWT token is valid
 const TokenExpiration = time.Hour * 24 // 24 hours
