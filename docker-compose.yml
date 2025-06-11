@@ -36,7 +36,7 @@ services:
       - SERVER_PORT=8080
       - JWT_SECRET=your-super-secret-jwt-key-here-make-it-long-and-secure
       - AI_SERVICE_URL=http://ai-service:8000
-      - ENV=development
+      - ENV=production
     expose:
       - "8080"
     depends_on:
@@ -61,7 +61,7 @@ services:
       - SERVER_PORT=8080
       - JWT_SECRET=your-super-secret-jwt-key-here-make-it-long-and-secure
       - AI_SERVICE_URL=http://ai-service:8000
-      - ENV=development
+      - ENV=production
     expose:
       - "8080"
     depends_on:
@@ -86,7 +86,7 @@ services:
       - SERVER_PORT=8080
       - JWT_SECRET=your-super-secret-jwt-key-here-make-it-long-and-secure
       - AI_SERVICE_URL=http://ai-service:8000
-      - ENV=development
+      - ENV=production
     expose:
       - "8080"
     depends_on:
@@ -145,8 +145,8 @@ services:
     build: ./frontend
     container_name: cv-management-frontend
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost/api
-      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://167.71.199.165/api
+      - NODE_ENV=production
     ports:
       - "3000:3000"
     depends_on:

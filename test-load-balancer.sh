@@ -14,7 +14,7 @@ for i in {1..12}; do
     # Make request and capture response with headers
     response=$(curl -s -w "HTTP Status: %{http_code}\nResponse Time: %{time_total}s\n" \
                    -H "Accept: application/json" \
-                   http://localhost/api/health)
+                   http://167.71.199.165/api/health)
     
     echo "$response"
     echo "---"

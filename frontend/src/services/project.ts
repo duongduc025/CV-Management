@@ -2,7 +2,7 @@ import axios from 'axios';
 // Import user functions from user service
 import { getUsers as getAllUsers, getUserById } from './user';
 
-const API_URL =  'http://localhost:8080/api';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
 
 // Interfaces based on backend models
 export interface User {

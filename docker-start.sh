@@ -95,10 +95,10 @@ reset_everything() {
 # Function to show URLs
 show_urls() {
     echo "🌐 Application URLs:"
-    echo "   Frontend:        http://localhost:3000"
-    echo "   Backend API:     http://localhost:8080"
-    echo "   AI Service API:  http://localhost:8000"
-    echo "   AI Service Docs: http://localhost:8000/docs"
+    echo "   Frontend:        http://167.71.199.165:3000"
+    echo "   Load Balanced API: http://167.71.199.165/api"
+    echo "   AI Service API:  http://167.71.199.165:8000"
+    echo "   AI Service Docs: http://167.71.199.165:8000/docs"
     echo ""
     echo "📊 To view logs: docker-compose logs -f [service-name]"
     echo "🛑 To stop: docker-compose down"
