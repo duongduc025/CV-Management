@@ -18,8 +18,8 @@ import (
 type AspectRatio string
 
 const (
-	AspectRatio4x5 AspectRatio = "4:5" // 4:5 aspect ratio (0.8)
-	AspectRatio3x4 AspectRatio = "3:4" // 3:4 aspect ratio (0.75)
+	AspectRatio4x5 AspectRatio = "4:5" // Tỷ lệ 4:5 (0.8)
+	AspectRatio3x4 AspectRatio = "3:4" // Tỷ lệ 3:4 (0.75)
 )
 
 // ImageProcessingOptions holds options for image processing
@@ -27,41 +27,41 @@ type ImageProcessingOptions struct {
 	AspectRatio AspectRatio
 	MaxWidth    int
 	MaxHeight   int
-	Quality     int // JPEG quality (1-100)
+	Quality     int // Chất lượng JPEG (1-100)
 }
 
 // DefaultImageOptions returns default image processing options
 func DefaultImageOptions() *ImageProcessingOptions {
 	return &ImageProcessingOptions{
-		AspectRatio: AspectRatio3x4, // Default to 3:4
+		AspectRatio: AspectRatio3x4, // Mặc định là 3:4
 		MaxWidth:    800,
-		MaxHeight:   1067, // Adjusted for 3:4 ratio (800 * 4/3)
+		MaxHeight:   1067, // Điều chỉnh cho tỷ lệ 3:4 (800 * 4/3)
 		Quality:     85,
 	}
 }
 
 // ProcessImage processes an uploaded image file with scaling and aspect ratio adjustment
 func ProcessImage(fileHeader *multipart.FileHeader, options *ImageProcessingOptions) ([]byte, error) {
-	// Open the uploaded file
+	// Mở file được upload
 	file, err := fileHeader.Open()
 	if err != nil {
 		return nil, fmt.Errorf("failed to open uploaded file: %w", err)
 	}
 	defer file.Close()
 
-	// Decode the image
+	// Giải mã ảnh
 	img, format, err := image.Decode(file)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode image: %w", err)
 	}
 
-	// Process the image based on aspect ratio
+	// Xử lý ảnh dựa trên tỷ lệ khung hình
 	processedImg, err := scaleToAspectRatio(img, options.AspectRatio, options.MaxWidth, options.MaxHeight)
 	if err != nil {
 		return nil, fmt.Errorf("failed to scale image: %w", err)
 	}
 
-	// Encode the processed image
+	// Mã hóa ảnh đã xử lý
 	return encodeImage(processedImg, format, options.Quality)
 }
 
@@ -71,7 +71,7 @@ func scaleToAspectRatio(img image.Image, aspectRatio AspectRatio, maxWidth, maxH
 	originalWidth := bounds.Dx()
 	originalHeight := bounds.Dy()
 
-	// Calculate target aspect ratio
+	// Tính toán tỷ lệ target
 	var targetRatio float64
 	switch aspectRatio {
 	case AspectRatio4x5:
@@ -82,28 +82,28 @@ func scaleToAspectRatio(img image.Image, aspectRatio AspectRatio, maxWidth, maxH
 		return nil, fmt.Errorf("unsupported aspect ratio: %s", aspectRatio)
 	}
 
-	// Calculate current aspect ratio
+	// Tính toán tỷ lệ hiện tại
 	currentRatio := float64(originalWidth) / float64(originalHeight)
 
 	var newWidth, newHeight int
 
 	if currentRatio > targetRatio {
-		// Image is too wide, crop width
+		// Ảnh quá rộng, cắt chiều rộng
 		newHeight = originalHeight
 		newWidth = int(float64(newHeight) * targetRatio)
 	} else {
-		// Image is too tall, crop height
+		// Ảnh quá cao, cắt chiều cao
 		newWidth = originalWidth
 		newHeight = int(float64(newWidth) / targetRatio)
 	}
 
-	// Center crop to the target aspect ratio
+	// Cắt ở giữa theo tỷ lệ target
 	cropX := (originalWidth - newWidth) / 2
 	cropY := (originalHeight - newHeight) / 2
 
 	croppedImg := imaging.Crop(img, image.Rect(cropX, cropY, cropX+newWidth, cropY+newHeight))
 
-	// Scale down if the image is larger than max dimensions
+	// Thu nhỏ nếu ảnh lớn hơn kích thước tối đa
 	finalWidth := newWidth
 	finalHeight := newHeight
 
@@ -117,7 +117,7 @@ func scaleToAspectRatio(img image.Image, aspectRatio AspectRatio, maxWidth, maxH
 		finalWidth = int(float64(finalHeight) * targetRatio)
 	}
 
-	// Resize if needed
+	// Resize nếu cần
 	if finalWidth != newWidth || finalHeight != newHeight {
 		return imaging.Resize(croppedImg, finalWidth, finalHeight, imaging.Lanczos), nil
 	}
@@ -146,7 +146,7 @@ func encodeImage(img image.Image, format string, quality int) ([]byte, error) {
 			return nil, fmt.Errorf("failed to encode GIF: %w", err)
 		}
 	default:
-		// Default to JPEG for unsupported formats
+		// Mặc định JPEG cho format không được hỗ trợ
 		err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: quality})
 		if err != nil {
 			return nil, fmt.Errorf("failed to encode as JPEG: %w", err)
@@ -164,7 +164,7 @@ func GetImageDimensions(fileHeader *multipart.FileHeader) (int, int, error) {
 	}
 	defer file.Close()
 
-	// Read only the image header to get dimensions
+	// Chỉ đọc header ảnh để lấy kích thước
 	config, _, err := image.DecodeConfig(file)
 	if err != nil {
 		return 0, 0, fmt.Errorf("failed to decode image config: %w", err)
@@ -175,33 +175,33 @@ func GetImageDimensions(fileHeader *multipart.FileHeader) (int, int, error) {
 
 // ValidateImageFile validates if the uploaded file is a valid image
 func ValidateImageFile(fileHeader *multipart.FileHeader) error {
-	// Check file extension
+	// Kiểm tra phần mở rộng file
 	if !IsValidImageType(fileHeader.Filename) {
 		return fmt.Errorf("invalid file type. Supported formats: JPG, JPEG, PNG, GIF, WebP")
 	}
 
-	// Check file size
+	// Kiểm tra kích thước file
 	if err := ValidateFileSize(fileHeader.Size); err != nil {
 		return err
 	}
 
-	// Try to decode the image to ensure it's valid
+	// Thử giải mã ảnh để đảm bảo nó hợp lệ
 	file, err := fileHeader.Open()
 	if err != nil {
 		return fmt.Errorf("failed to open file: %w", err)
 	}
 	defer file.Close()
 
-	// Read a small portion to validate it's actually an image
-	_, err = io.CopyN(io.Discard, file, 512) // Read first 512 bytes
+	// Đọc một phần nhỏ để xác thực đây thực sự là ảnh
+	_, err = io.CopyN(io.Discard, file, 512) // Đọc 512 bytes đầu tiên
 	if err != nil && err != io.EOF {
 		return fmt.Errorf("failed to read file: %w", err)
 	}
 
-	// Reset file pointer
+	// Reset con trỏ file
 	file.Seek(0, 0)
 
-	// Try to decode the image
+	// Thử giải mã ảnh
 	_, _, err = image.DecodeConfig(file)
 	if err != nil {
 		return fmt.Errorf("invalid image file: %w", err)

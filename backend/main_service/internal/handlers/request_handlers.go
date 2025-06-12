@@ -12,7 +12,7 @@ import (
 
 // GetCVRequests returns all CV update requests for a user
 func GetCVRequests(c *gin.Context) {
-	// Get user ID from context (set by auth middleware)
+	// Lấy user ID từ context (được set bởi auth middleware)
 	userID, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -22,9 +22,9 @@ func GetCVRequests(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("GetCVRequests: Fetching CV requests for user %v\n", userID)
+	fmt.Printf("GetCVRequests: Lấy CV requests cho user %v\n", userID)
 
-	// Query to get all CV update requests for a user with requester name
+	// Query để lấy tất cả CV update requests cho user với tên người yêu cầu
 	rows, err := database.DB.Query(c,
 		`SELECT cur.id, cur.cv_id, cur.requested_by, u.full_name, cur.requested_at, cur.status, cur.is_read, cur.content
 		FROM cv_update_requests cur
@@ -34,7 +34,7 @@ func GetCVRequests(c *gin.Context) {
 		ORDER BY cur.requested_at DESC`, userID)
 
 	if err != nil {
-		fmt.Printf("GetCVRequests: Error querying CV requests: %v\n", err)
+		fmt.Printf("GetCVRequests: Lỗi khi query CV requests: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
 			"message": "Error fetching CV update requests",
@@ -43,7 +43,7 @@ func GetCVRequests(c *gin.Context) {
 	}
 	defer rows.Close()
 
-	// Process the query results
+	// Xử lý kết quả query
 	var requests []map[string]any
 	for rows.Next() {
 		var id, cvID, requestedBy, requesterName, status string
@@ -53,11 +53,11 @@ func GetCVRequests(c *gin.Context) {
 
 		err := rows.Scan(&id, &cvID, &requestedBy, &requesterName, &requestedAt, &status, &isRead, &content)
 		if err != nil {
-			fmt.Printf("GetCVRequests: Error scanning row: %v\n", err)
+			fmt.Printf("GetCVRequests: Lỗi khi scan row: %v\n", err)
 			continue
 		}
 
-		// Create notification message based on content
+		// Tạo notification message dựa trên content
 		var notificationMessage string
 		if content != nil && *content != "" {
 			notificationMessage = fmt.Sprintf("%s với lời nhắn: \"%s\"", requesterName, *content)
@@ -65,7 +65,7 @@ func GetCVRequests(c *gin.Context) {
 			notificationMessage = fmt.Sprintf("%s đã yêu cầu bạn cập nhật CV. Vui lòng cập nhật CV của bạn trong thời gian sớm nhất.", requesterName)
 		}
 
-		// Create request object with additional fields for notifications
+		// Tạo request object với các trường bổ sung cho notifications
 		request := map[string]any{
 			"id":             id,
 			"cv_id":          cvID,
@@ -75,20 +75,20 @@ func GetCVRequests(c *gin.Context) {
 			"status":         status,
 			"is_read":        isRead,
 			"content":        content,
-			// Additional fields for notification compatibility
+			// Các trường bổ sung cho notification compatibility
 			"type":      "cv_update_request",
 			"title":     "Yêu cầu cập nhật CV",
 			"message":   notificationMessage,
 			"timestamp": requestedAt.Unix(),
-			"read":      isRead, // Use actual read status from database
+			"read":      isRead, // Sử dụng trạng thái đọc thực tế từ database
 		}
 
 		requests = append(requests, request)
 	}
 
-	// Check for any errors during iteration
+	// Kiểm tra lỗi trong quá trình iteration
 	if err = rows.Err(); err != nil {
-		fmt.Printf("GetCVRequests: Error during row iteration: %v\n", err)
+		fmt.Printf("GetCVRequests: Lỗi trong quá trình row iteration: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
 			"message": "Error processing CV update requests",
@@ -96,7 +96,7 @@ func GetCVRequests(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("GetCVRequests: Successfully fetched %d CV requests for user %v\n", len(requests), userID)
+	fmt.Printf("GetCVRequests: Lấy thành công %d CV requests cho user %v\n", len(requests), userID)
 
 	c.JSON(http.StatusOK, gin.H{
 		"status": "success",
@@ -106,7 +106,7 @@ func GetCVRequests(c *gin.Context) {
 
 // CreateCVRequest creates a new CV update request
 func CreateCVRequest(c *gin.Context) {
-	// Get user ID from context (set by auth middleware)
+	// Lấy user ID từ context (được set bởi auth middleware)
 	requestedByID, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -129,13 +129,13 @@ func CreateCVRequest(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("CreateCVRequest: Creating request for CV %s by user %v\n", request.CVID, requestedByID)
+	fmt.Printf("CreateCVRequest: Tạo request cho CV %s bởi user %v\n", request.CVID, requestedByID)
 
-	// Check if CV exists and get the user_id and status
+	// Kiểm tra CV có tồn tại và lấy user_id và status
 	var cvOwnerID, cvStatus string
 	err := database.DB.QueryRow(c, "SELECT user_id, status FROM cv WHERE id = $1", request.CVID).Scan(&cvOwnerID, &cvStatus)
 	if err != nil {
-		fmt.Printf("CreateCVRequest: Error finding CV: %v\n", err)
+		fmt.Printf("CreateCVRequest: Lỗi khi tìm CV: %v\n", err)
 		c.JSON(http.StatusNotFound, gin.H{
 			"status":  "error",
 			"message": "CV not found",
@@ -143,9 +143,9 @@ func CreateCVRequest(c *gin.Context) {
 		return
 	}
 
-	// Prevent users from creating CV update requests for their own CVs
+	// Ngăn users tạo CV update requests cho CV của chính họ
 	if cvOwnerID == requestedByID.(string) {
-		fmt.Printf("CreateCVRequest: User %v attempted to create request for their own CV %s\n", requestedByID, request.CVID)
+		fmt.Printf("CreateCVRequest: User %v cố gắng tạo request cho CV của chính mình %s\n", requestedByID, request.CVID)
 		c.JSON(http.StatusOK, gin.H{
 			"status":  "error",
 			"message": "Bạn không thể tạo yêu cầu cập nhật cho CV của chính mình",
@@ -153,9 +153,9 @@ func CreateCVRequest(c *gin.Context) {
 		return
 	}
 
-	// Check CV status before creating request
+	// Kiểm tra trạng thái CV trước khi tạo request
 	if cvStatus == "Chưa cập nhật" {
-		fmt.Printf("CreateCVRequest: CV %s is already in 'Chưa cập nhật' status, sending status message\n", request.CVID)
+		fmt.Printf("CreateCVRequest: CV %s đã ở trạng thái 'Chưa cập nhật', gửi status message\n", request.CVID)
 		c.JSON(http.StatusOK, gin.H{
 			"status":  "success",
 			"message": "CV đang trong trạng thái chờ cập nhật",
@@ -163,49 +163,49 @@ func CreateCVRequest(c *gin.Context) {
 		return
 	}
 
-	// If CV is in "Đã cập nhật" or "Hủy yêu cầu" status, update it to "Chưa cập nhật"
+	// Nếu CV ở trạng thái "Đã cập nhật" hoặc "Hủy yêu cầu", cập nhật thành "Chưa cập nhật"
 	if cvStatus == "Đã cập nhật" || cvStatus == "Hủy yêu cầu" {
-		fmt.Printf("CreateCVRequest: Updating CV %s status from '%s' to 'Chưa cập nhật'\n", request.CVID, cvStatus)
+		fmt.Printf("CreateCVRequest: Cập nhật CV %s status từ '%s' thành 'Chưa cập nhật'\n", request.CVID, cvStatus)
 		_, err = database.DB.Exec(c,
 			"UPDATE cv SET status = 'Chưa cập nhật' WHERE id = $1",
 			request.CVID)
 
 		if err != nil {
-			fmt.Printf("CreateCVRequest: Error updating CV status: %v\n", err)
+			fmt.Printf("CreateCVRequest: Lỗi khi cập nhật CV status: %v\n", err)
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"status":  "error",
 				"message": "Error updating CV status",
 			})
 			return
 		}
-		fmt.Printf("CreateCVRequest: Successfully updated CV %s status to 'Chưa cập nhật'\n", request.CVID)
+		fmt.Printf("CreateCVRequest: Cập nhật thành công CV %s status thành 'Chưa cập nhật'\n", request.CVID)
 	}
 
-	// Check if there's already an active request for this CV and cancel it
+	// Kiểm tra có request đang hoạt động cho CV này không và hủy nó
 	var existingRequestID string
 	err = database.DB.QueryRow(c,
 		"SELECT id FROM cv_update_requests WHERE cv_id = $1 AND status = 'Đang yêu cầu'",
 		request.CVID).Scan(&existingRequestID)
 
 	if err == nil {
-		// Active request exists, cancel it by changing status to "Đã huỷ"
-		fmt.Printf("CreateCVRequest: Found existing active request %s, cancelling it\n", existingRequestID)
+		// Request đang hoạt động tồn tại, hủy nó bằng cách thay đổi status thành "Đã huỷ"
+		fmt.Printf("CreateCVRequest: Tìm thấy request đang hoạt động %s, đang hủy nó\n", existingRequestID)
 		_, err = database.DB.Exec(c,
 			"UPDATE cv_update_requests SET status = 'Đã huỷ' WHERE id = $1",
 			existingRequestID)
 
 		if err != nil {
-			fmt.Printf("CreateCVRequest: Error cancelling existing request: %v\n", err)
+			fmt.Printf("CreateCVRequest: Lỗi khi hủy request hiện có: %v\n", err)
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"status":  "error",
 				"message": "Error cancelling existing CV update request",
 			})
 			return
 		}
-		fmt.Printf("CreateCVRequest: Successfully cancelled existing request %s\n", existingRequestID)
+		fmt.Printf("CreateCVRequest: Hủy thành công request hiện có %s\n", existingRequestID)
 	}
 
-	// Create new CV update request
+	// Tạo CV update request mới
 	var newRequestID string
 	var contentPtr *string
 	if request.Content != "" {
@@ -219,7 +219,7 @@ func CreateCVRequest(c *gin.Context) {
 		request.CVID, requestedByID, contentPtr).Scan(&newRequestID)
 
 	if err != nil {
-		fmt.Printf("CreateCVRequest: Error creating request: %v\n", err)
+		fmt.Printf("CreateCVRequest: Lỗi khi tạo request: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
 			"message": "Error creating CV update request",
@@ -227,19 +227,19 @@ func CreateCVRequest(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("CreateCVRequest: Successfully created request %s\n", newRequestID)
+	fmt.Printf("CreateCVRequest: Tạo thành công request %s\n", newRequestID)
 
-	// Send SSE notification to CV owner
+	// Gửi SSE notification tới chủ CV
 	go func() {
-		// Get requester information for the notification
+		// Lấy thông tin người yêu cầu cho notification
 		var requesterName string
 		err := database.DB.QueryRow(c, "SELECT full_name FROM users WHERE id = $1", requestedByID).Scan(&requesterName)
 		if err != nil {
-			fmt.Printf("CreateCVRequest: Error getting requester name: %v\n", err)
+			fmt.Printf("CreateCVRequest: Lỗi khi lấy tên người yêu cầu: %v\n", err)
 			requesterName = "Quản lý dự án"
 		}
 
-		// Create notification message
+		// Tạo notification message
 		var notificationMessage string
 		if request.Content != "" {
 			notificationMessage = fmt.Sprintf("%s đã yêu cầu bạn cập nhật CV với lời nhắn: \"%s\"", requesterName, request.Content)
@@ -260,10 +260,10 @@ func CreateCVRequest(c *gin.Context) {
 		}
 
 		SendSSENotificationToUser(cvOwnerID, "cv_update_request", notificationData)
-		fmt.Printf("CreateCVRequest: SSE notification sent to CV owner %s\n", cvOwnerID)
+		fmt.Printf("CreateCVRequest: SSE notification đã gửi tới chủ CV %s\n", cvOwnerID)
 	}()
 
-	// Create response
+	// Tạo response
 	response := models.CVUpdateRequest{
 		ID:          newRequestID,
 		CVID:        request.CVID,
@@ -272,7 +272,7 @@ func CreateCVRequest(c *gin.Context) {
 		Status:      "Đang yêu cầu",
 	}
 
-	// Determine message based on whether we cancelled an existing request
+	// Xác định message dựa trên việc có hủy request hiện có không
 	message := "Yêu cầu cập nhật CV đã được tạo thành công"
 	if existingRequestID != "" {
 		message = "Yêu cầu cập nhật CV đã được tạo thành công"
@@ -284,8 +284,9 @@ func CreateCVRequest(c *gin.Context) {
 		"message": message,
 	})
 }
+
 func GetSentCVRequests(c *gin.Context) {
-	// Get user ID from context (set by auth middleware)
+	// Lấy user ID từ context (được set bởi auth middleware)
 	userID, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -295,9 +296,9 @@ func GetSentCVRequests(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("GetSentCVRequests: Fetching CV requests sent by user %v\n", userID)
+	fmt.Printf("GetSentCVRequests: Lấy CV requests đã gửi bởi user %v\n", userID)
 
-	// Query to get all CV update requests sent by the user with employee information
+	// Query để lấy tất cả CV update requests đã gửi bởi user với thông tin employee
 	rows, err := database.DB.Query(c,
 		`SELECT
 			cur.id,
@@ -369,7 +370,7 @@ func GetSentCVRequests(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("GetSentCVRequests: Successfully fetched %d sent CV requests\n", len(requests))
+	fmt.Printf("GetSentCVRequests: Lấy thành công %d sent CV requests\n", len(requests))
 
 	c.JSON(http.StatusOK, gin.H{
 		"status": "success",
@@ -379,7 +380,7 @@ func GetSentCVRequests(c *gin.Context) {
 
 // GetSentCVRequestsPM returns CV update requests sent by the PM to users in their managed projects
 func GetSentCVRequestsPM(c *gin.Context) {
-	// Get user ID from context (set by auth middleware)
+	// Lấy user ID từ context (được set bởi auth middleware)
 	userID, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -389,9 +390,9 @@ func GetSentCVRequestsPM(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("GetSentCVRequestsPM: Fetching CV requests sent by PM %v\n", userID)
+	fmt.Printf("GetSentCVRequestsPM: Lấy CV requests đã gửi bởi PM %v\n", userID)
 
-	// Query to get CV update requests sent by the PM to users in their managed projects
+	// Query để lấy CV update requests đã gửi bởi PM tới users trong các dự án họ quản lý
 	rows, err := database.DB.Query(c,
 		`SELECT
 			cur.id,
@@ -471,7 +472,7 @@ func GetSentCVRequestsPM(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("GetSentCVRequestsPM: Successfully fetched %d sent CV requests for PM\n", len(requests))
+	fmt.Printf("GetSentCVRequestsPM: Lấy thành công %d sent CV requests cho PM\n", len(requests))
 
 	c.JSON(http.StatusOK, gin.H{
 		"status": "success",
@@ -481,7 +482,7 @@ func GetSentCVRequestsPM(c *gin.Context) {
 
 // GetSentCVRequestsBUL returns CV update requests sent by the BUL to users in their Business Unit
 func GetSentCVRequestsBUL(c *gin.Context) {
-	// Get user ID from context (set by auth middleware)
+	// Lấy user ID từ context (được set bởi auth middleware)
 	userID, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -491,9 +492,9 @@ func GetSentCVRequestsBUL(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("GetSentCVRequestsBUL: Fetching CV requests sent by BUL %v\n", userID)
+	fmt.Printf("GetSentCVRequestsBUL: Lấy CV requests đã gửi bởi BUL %v\n", userID)
 
-	// Query to get CV update requests sent by the BUL to users in their Business Unit
+	// Query để lấy CV update requests đã gửi bởi BUL tới users trong Business Unit của họ
 	rows, err := database.DB.Query(c,
 		`SELECT
 			cur.id,
@@ -572,15 +573,16 @@ func GetSentCVRequestsBUL(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("GetSentCVRequestsBUL: Successfully fetched %d sent CV requests for BUL\n", len(requests))
+	fmt.Printf("GetSentCVRequestsBUL: Lấy thành công %d sent CV requests cho BUL\n", len(requests))
 
 	c.JSON(http.StatusOK, gin.H{
 		"status": "success",
 		"data":   requests,
 	})
 }
+
 func MarkCVRequestAsRead(c *gin.Context) {
-	// Get user ID from context (set by auth middleware)
+	// Lấy user ID từ context (được set bởi auth middleware)
 	userID, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -599,9 +601,9 @@ func MarkCVRequestAsRead(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("MarkCVRequestAsRead: Marking request %s as read for user %v\n", requestID, userID)
+	fmt.Printf("MarkCVRequestAsRead: Đánh dấu request %s đã đọc cho user %v\n", requestID, userID)
 
-	// Update the is_read status for the specific request, but only if the user owns the CV
+	// Cập nhật trạng thái is_read cho request cụ thể, nhưng chỉ nếu user sở hữu CV
 	result, err := database.DB.Exec(c,
 		`UPDATE cv_update_requests
 		SET is_read = true
@@ -610,7 +612,7 @@ func MarkCVRequestAsRead(c *gin.Context) {
 		requestID, userID)
 
 	if err != nil {
-		fmt.Printf("MarkCVRequestAsRead: Error updating request: %v\n", err)
+		fmt.Printf("MarkCVRequestAsRead: Lỗi khi cập nhật request: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
 			"message": "Error marking request as read",
@@ -627,7 +629,7 @@ func MarkCVRequestAsRead(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("MarkCVRequestAsRead: Successfully marked request %s as read\n", requestID)
+	fmt.Printf("MarkCVRequestAsRead: Đánh dấu thành công request %s đã đọc\n", requestID)
 
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "success",
@@ -637,7 +639,7 @@ func MarkCVRequestAsRead(c *gin.Context) {
 
 // MarkAllCVRequestsAsRead marks all CV update requests as read for the authenticated user
 func MarkAllCVRequestsAsRead(c *gin.Context) {
-	// Get user ID from context (set by auth middleware)
+	// Lấy user ID từ context (được set bởi auth middleware)
 	userID, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -647,9 +649,9 @@ func MarkAllCVRequestsAsRead(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("MarkAllCVRequestsAsRead: Marking all requests as read for user %v\n", userID)
+	fmt.Printf("MarkAllCVRequestsAsRead: Đánh dấu tất cả requests đã đọc cho user %v\n", userID)
 
-	// Update all unread requests for the user's CVs
+	// Cập nhật tất cả requests chưa đọc cho CVs của user
 	result, err := database.DB.Exec(c,
 		`UPDATE cv_update_requests
 		SET is_read = true
@@ -658,7 +660,7 @@ func MarkAllCVRequestsAsRead(c *gin.Context) {
 		userID)
 
 	if err != nil {
-		fmt.Printf("MarkAllCVRequestsAsRead: Error updating requests: %v\n", err)
+		fmt.Printf("MarkAllCVRequestsAsRead: Lỗi khi cập nhật requests: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
 			"message": "Error marking all requests as read",
@@ -667,7 +669,7 @@ func MarkAllCVRequestsAsRead(c *gin.Context) {
 	}
 
 	rowsAffected := result.RowsAffected()
-	fmt.Printf("MarkAllCVRequestsAsRead: Successfully marked %d requests as read\n", rowsAffected)
+	fmt.Printf("MarkAllCVRequestsAsRead: Đánh dấu thành công %d requests đã đọc\n", rowsAffected)
 
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "success",
@@ -680,9 +682,9 @@ func MarkAllCVRequestsAsRead(c *gin.Context) {
 
 // GetAllCVRequestsForAdmin returns all CV update requests across all users (admin only)
 func GetAllCVRequestsForAdmin(c *gin.Context) {
-	fmt.Println("GetAllCVRequestsForAdmin: Fetching all CV requests for admin")
+	fmt.Println("GetAllCVRequestsForAdmin: Lấy tất cả CV requests cho admin")
 
-	// Query to get all CV update requests with employee and requester information
+	// Query để lấy tất cả CV update requests với thông tin employee và requester
 	rows, err := database.DB.Query(c,
 		`SELECT
 			cur.id,
@@ -756,13 +758,14 @@ func GetAllCVRequestsForAdmin(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("GetAllCVRequestsForAdmin: Successfully fetched %d CV requests\n", len(requests))
+	fmt.Printf("GetAllCVRequestsForAdmin: Lấy thành công %d CV requests\n", len(requests))
 
 	c.JSON(http.StatusOK, gin.H{
 		"status": "success",
 		"data":   requests,
 	})
 }
+
 func UpdateCVRequestStatus(c *gin.Context) {
 	id := c.Param("id")
 
@@ -778,7 +781,7 @@ func UpdateCVRequestStatus(c *gin.Context) {
 		return
 	}
 
-	// Validate status
+	// Xác thực status
 	if request.Status != "Đã xử lý" && request.Status != "Đã huỷ" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  "error",
@@ -787,12 +790,12 @@ func UpdateCVRequestStatus(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("UpdateCVRequestStatus: Updating request %s to status %s\n", id, request.Status)
+	fmt.Printf("UpdateCVRequestStatus: Cập nhật request %s thành status %s\n", id, request.Status)
 
-	// Start a transaction to update both cv_update_requests and cv tables
+	// Bắt đầu transaction để cập nhật cả bảng cv_update_requests và cv
 	tx, err := database.DB.Begin(c)
 	if err != nil {
-		fmt.Printf("UpdateCVRequestStatus: Error starting transaction: %v\n", err)
+		fmt.Printf("UpdateCVRequestStatus: Lỗi khi bắt đầu transaction: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
 			"message": "Error starting database transaction",
@@ -801,14 +804,14 @@ func UpdateCVRequestStatus(c *gin.Context) {
 	}
 	defer tx.Rollback(c)
 
-	// First, get the CV ID and current status from the request to validate and update
+	// Đầu tiên, lấy CV ID và status hiện tại từ request để xác thực và cập nhật
 	var cvID, currentStatus string
 	err = tx.QueryRow(c,
 		`SELECT cv_id, status FROM cv_update_requests WHERE id = $1`,
 		id).Scan(&cvID, &currentStatus)
 
 	if err != nil {
-		fmt.Printf("UpdateCVRequestStatus: Error fetching CV ID and status: %v\n", err)
+		fmt.Printf("UpdateCVRequestStatus: Lỗi khi lấy CV ID và status: %v\n", err)
 		c.JSON(http.StatusNotFound, gin.H{
 			"status":  "error",
 			"message": "CV update request not found",
@@ -816,9 +819,9 @@ func UpdateCVRequestStatus(c *gin.Context) {
 		return
 	}
 
-	// Check if the request is already in a final state
+	// Kiểm tra request đã ở trạng thái cuối chưa
 	if currentStatus == "Đã xử lý" || currentStatus == "Đã huỷ" {
-		fmt.Printf("UpdateCVRequestStatus: Request %s is already in final state '%s', cannot update\n", id, currentStatus)
+		fmt.Printf("UpdateCVRequestStatus: Request %s đã ở trạng thái cuối '%s', không thể cập nhật\n", id, currentStatus)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  "error",
 			"message": "Cannot update request that is already processed or cancelled",
@@ -826,13 +829,13 @@ func UpdateCVRequestStatus(c *gin.Context) {
 		return
 	}
 
-	// Update the request status in database
+	// Cập nhật status request trong database
 	result, err := tx.Exec(c,
 		`UPDATE cv_update_requests SET status = $1 WHERE id = $2`,
 		request.Status, id)
 
 	if err != nil {
-		fmt.Printf("UpdateCVRequestStatus: Error updating request: %v\n", err)
+		fmt.Printf("UpdateCVRequestStatus: Lỗi khi cập nhật request: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
 			"message": "Error updating CV update request status",
@@ -849,28 +852,28 @@ func UpdateCVRequestStatus(c *gin.Context) {
 		return
 	}
 
-	// If the request status is being set to "Đã huỷ", update the CV status to "Hủy yêu cầu"
+	// Nếu request status được set thành "Đã huỷ", cập nhật CV status thành "Hủy yêu cầu"
 	if request.Status == "Đã huỷ" {
-		fmt.Printf("UpdateCVRequestStatus: Updating CV %s status to 'Hủy yêu cầu'\n", cvID)
+		fmt.Printf("UpdateCVRequestStatus: Cập nhật CV %s status thành 'Hủy yêu cầu'\n", cvID)
 		_, err = tx.Exec(c,
 			`UPDATE cv SET status = 'Hủy yêu cầu' WHERE id = $1`,
 			cvID)
 
 		if err != nil {
-			fmt.Printf("UpdateCVRequestStatus: Error updating CV status: %v\n", err)
+			fmt.Printf("UpdateCVRequestStatus: Lỗi khi cập nhật CV status: %v\n", err)
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"status":  "error",
 				"message": "Error updating CV status",
 			})
 			return
 		}
-		fmt.Printf("UpdateCVRequestStatus: Successfully updated CV %s status to 'Hủy yêu cầu'\n", cvID)
+		fmt.Printf("UpdateCVRequestStatus: Cập nhật thành công CV %s status thành 'Hủy yêu cầu'\n", cvID)
 	}
 
-	// Commit the transaction
+	// Commit transaction
 	err = tx.Commit(c)
 	if err != nil {
-		fmt.Printf("UpdateCVRequestStatus: Error committing transaction: %v\n", err)
+		fmt.Printf("UpdateCVRequestStatus: Lỗi khi commit transaction: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
 			"message": "Error committing database transaction",
@@ -878,7 +881,7 @@ func UpdateCVRequestStatus(c *gin.Context) {
 		return
 	}
 
-	// Get the updated request details
+	// Lấy chi tiết request đã cập nhật
 	var updatedRequest models.CVUpdateRequest
 	err = database.DB.QueryRow(c,
 		`SELECT id, cv_id, requested_by, requested_at, status, is_read, content
@@ -887,7 +890,7 @@ func UpdateCVRequestStatus(c *gin.Context) {
 		&updatedRequest.RequestedAt, &updatedRequest.Status, &updatedRequest.IsRead, &updatedRequest.Content)
 
 	if err != nil {
-		fmt.Printf("UpdateCVRequestStatus: Error fetching updated request: %v\n", err)
+		fmt.Printf("UpdateCVRequestStatus: Lỗi khi lấy updated request: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
 			"message": "Error fetching updated request details",
@@ -895,7 +898,7 @@ func UpdateCVRequestStatus(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("UpdateCVRequestStatus: Successfully updated request %s to status %s\n", id, request.Status)
+	fmt.Printf("UpdateCVRequestStatus: Cập nhật thành công request %s thành status %s\n", id, request.Status)
 
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "success",

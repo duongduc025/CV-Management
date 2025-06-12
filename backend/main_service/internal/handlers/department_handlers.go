@@ -9,11 +9,10 @@ import (
 	"github.com/vdt/cv-management/internal/models"
 )
 
-// GetDepartments returns all departments (public endpoint for registration)
+// GetDepartments trả về tất cả phòng ban (endpoint public cho đăng ký)
 func GetDepartments(c *gin.Context) {
 	fmt.Println("GetDepartments: Fetching all departments")
 
-	// Query database for departments
 	rows, err := database.DB.Query(c, "SELECT id, name FROM departments ORDER BY name")
 	if err != nil {
 		fmt.Printf("GetDepartments error: %v\n", err)
@@ -25,7 +24,6 @@ func GetDepartments(c *gin.Context) {
 	}
 	defer rows.Close()
 
-	// Parse rows into department objects
 	var departments []models.Department
 	for rows.Next() {
 		var dept models.Department
@@ -40,7 +38,6 @@ func GetDepartments(c *gin.Context) {
 		departments = append(departments, dept)
 	}
 
-	// Check for errors during iteration
 	if err = rows.Err(); err != nil {
 		fmt.Printf("GetDepartments iteration error: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -57,11 +54,10 @@ func GetDepartments(c *gin.Context) {
 	})
 }
 
-// GetDepartmentsWithStats returns all departments with member counts and manager info (Admin only)
+// GetDepartmentsWithStats trả về tất cả phòng ban với số lượng thành viên và thông tin quản lý (chỉ Admin)
 func GetDepartmentsWithStats(c *gin.Context) {
 	fmt.Println("GetDepartmentsWithStats: Fetching departments with statistics")
 
-	// Query database for departments with member counts (simplified query)
 	rows, err := database.DB.Query(c, `
 		SELECT
 			d.id,
@@ -85,7 +81,6 @@ func GetDepartmentsWithStats(c *gin.Context) {
 	}
 	defer rows.Close()
 
-	// Define a struct for department with stats
 	type DepartmentWithStats struct {
 		ID          string `json:"id"`
 		Name        string `json:"name"`
@@ -94,11 +89,9 @@ func GetDepartmentsWithStats(c *gin.Context) {
 		ManagerID   string `json:"manager_id"`
 	}
 
-	// Parse rows into department objects
 	var departments []DepartmentWithStats
 	for rows.Next() {
 		var dept DepartmentWithStats
-		// Scan the basic fields
 		if err := rows.Scan(&dept.ID, &dept.Name, &dept.MemberCount); err != nil {
 			fmt.Printf("GetDepartmentsWithStats scan error: %v\n", err)
 			c.JSON(http.StatusInternalServerError, gin.H{
@@ -108,7 +101,6 @@ func GetDepartmentsWithStats(c *gin.Context) {
 			return
 		}
 
-		// Query for BUL/Lead manager in this department
 		var managerID, managerName string
 		managerQuery := `
 			SELECT u.id, u.full_name
@@ -120,12 +112,10 @@ func GetDepartmentsWithStats(c *gin.Context) {
 
 		err := database.DB.QueryRow(c, managerQuery, dept.ID).Scan(&managerID, &managerName)
 		if err != nil {
-			// No BUL/Lead found in this department, set default values
 			fmt.Printf("No BUL/Lead manager found for department %s (%s): %v\n", dept.Name, dept.ID, err)
 			dept.ManagerName = "Chưa có"
 			dept.ManagerID = ""
 		} else {
-			// BUL/Lead manager found
 			dept.ManagerName = managerName
 			dept.ManagerID = managerID
 			fmt.Printf("Found BUL/Lead manager for department %s: %s (%s)\n", dept.Name, managerName, managerID)
@@ -134,7 +124,6 @@ func GetDepartmentsWithStats(c *gin.Context) {
 		departments = append(departments, dept)
 	}
 
-	// Check for errors during iteration
 	if err = rows.Err(); err != nil {
 		fmt.Printf("GetDepartmentsWithStats iteration error: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -151,7 +140,7 @@ func GetDepartmentsWithStats(c *gin.Context) {
 	})
 }
 
-// CreateDepartment creates a new department (Admin only)
+// CreateDepartment tạo phòng ban mới (chỉ Admin)
 func CreateDepartment(c *gin.Context) {
 	fmt.Println("CreateDepartment: Creating new department")
 
@@ -170,7 +159,6 @@ func CreateDepartment(c *gin.Context) {
 
 	fmt.Printf("CreateDepartment: Creating department with name: %s\n", req.Name)
 
-	// Check if department name already exists
 	var exists bool
 	err := database.DB.QueryRow(c, "SELECT EXISTS(SELECT 1 FROM departments WHERE name = $1)", req.Name).Scan(&exists)
 	if err != nil {
@@ -190,7 +178,6 @@ func CreateDepartment(c *gin.Context) {
 		return
 	}
 
-	// Insert new department
 	var departmentID string
 	err = database.DB.QueryRow(c, "INSERT INTO departments (name) VALUES ($1) RETURNING id", req.Name).Scan(&departmentID)
 	if err != nil {
@@ -215,7 +202,7 @@ func CreateDepartment(c *gin.Context) {
 	})
 }
 
-// UpdateDepartment updates an existing department (Admin only)
+// UpdateDepartment cập nhật phòng ban hiện có (chỉ Admin)
 func UpdateDepartment(c *gin.Context) {
 	id := c.Param("id")
 	fmt.Printf("UpdateDepartment: Updating department %s\n", id)
@@ -235,7 +222,6 @@ func UpdateDepartment(c *gin.Context) {
 
 	fmt.Printf("UpdateDepartment: Updating department %s with name: %s\n", id, req.Name)
 
-	// Check if department exists
 	var exists bool
 	err := database.DB.QueryRow(c, "SELECT EXISTS(SELECT 1 FROM departments WHERE id = $1)", id).Scan(&exists)
 	if err != nil {
@@ -255,7 +241,6 @@ func UpdateDepartment(c *gin.Context) {
 		return
 	}
 
-	// Check if new name conflicts with existing departments (excluding current one)
 	var nameExists bool
 	err = database.DB.QueryRow(c, "SELECT EXISTS(SELECT 1 FROM departments WHERE name = $1 AND id != $2)", req.Name, id).Scan(&nameExists)
 	if err != nil {
@@ -275,7 +260,6 @@ func UpdateDepartment(c *gin.Context) {
 		return
 	}
 
-	// Update department
 	result, err := database.DB.Exec(c, "UPDATE departments SET name = $1 WHERE id = $2", req.Name, id)
 	if err != nil {
 		fmt.Printf("UpdateDepartment update error: %v\n", err)
@@ -286,7 +270,6 @@ func UpdateDepartment(c *gin.Context) {
 		return
 	}
 
-	// Check if any rows were affected
 	rowsAffected := result.RowsAffected()
 	if rowsAffected == 0 {
 		fmt.Printf("UpdateDepartment: No rows affected for department %s\n", id)
@@ -310,12 +293,11 @@ func UpdateDepartment(c *gin.Context) {
 	})
 }
 
-// DeleteDepartment deletes an existing department (Admin only)
+// DeleteDepartment xóa phòng ban hiện có (chỉ Admin)
 func DeleteDepartment(c *gin.Context) {
 	id := c.Param("id")
 	fmt.Printf("DeleteDepartment: Deleting department %s\n", id)
 
-	// Check if department exists and get its name
 	var departmentName string
 	err := database.DB.QueryRow(c, "SELECT name FROM departments WHERE id = $1", id).Scan(&departmentName)
 	if err != nil {
@@ -327,7 +309,6 @@ func DeleteDepartment(c *gin.Context) {
 		return
 	}
 
-	// Check if department has any users
 	var userCount int
 	err = database.DB.QueryRow(c, "SELECT COUNT(*) FROM users WHERE department_id = $1", id).Scan(&userCount)
 	if err != nil {
@@ -347,7 +328,6 @@ func DeleteDepartment(c *gin.Context) {
 		return
 	}
 
-	// Delete department
 	result, err := database.DB.Exec(c, "DELETE FROM departments WHERE id = $1", id)
 	if err != nil {
 		fmt.Printf("DeleteDepartment delete error: %v\n", err)
@@ -358,7 +338,6 @@ func DeleteDepartment(c *gin.Context) {
 		return
 	}
 
-	// Check if any rows were affected
 	rowsAffected := result.RowsAffected()
 	if rowsAffected == 0 {
 		fmt.Printf("DeleteDepartment: No rows affected for department %s\n", id)

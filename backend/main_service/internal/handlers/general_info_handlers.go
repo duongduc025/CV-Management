@@ -19,9 +19,8 @@ type AdminDashboardStats struct {
 	TotalDepartments int `json:"totalDepartments"`
 }
 
+// GetGeneralInfoOfDepartment lấy tên phòng ban và số lượng thành viên trong phòng ban
 func GetGeneralInfoOfDepartment(c *gin.Context) {
-	//Get the name of department and numbers of member in the department
-	// Get user ID from context
 	userID, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -31,7 +30,7 @@ func GetGeneralInfoOfDepartment(c *gin.Context) {
 		return
 	}
 
-	// Get user roles from context
+	// Lấy roles của user từ context
 	roles, exists := c.Get("roles")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -41,7 +40,7 @@ func GetGeneralInfoOfDepartment(c *gin.Context) {
 		return
 	}
 
-	// Convert roles to string slice
+	// Chuyển đổi roles thành string slice
 	roleSlice, ok := roles.([]string)
 	if !ok {
 		fmt.Printf("GetProjects: Invalid role format: %T = %v\n", roles, roles)
@@ -64,7 +63,6 @@ func GetGeneralInfoOfDepartment(c *gin.Context) {
 
 	fmt.Printf("GetGeneralInfoOfDepartment: User ID: %v, Roles: %v\n", userIDStr, roleSlice)
 
-	// First, get the user's department ID
 	var userDepartmentID string
 	err := database.DB.QueryRow(c, `
 		SELECT department_id
@@ -72,7 +70,7 @@ func GetGeneralInfoOfDepartment(c *gin.Context) {
 		WHERE id = $1`, userIDStr).Scan(&userDepartmentID)
 
 	if err != nil {
-		fmt.Printf("GetGeneralInfoOfDepartment: Error getting user department: %v\n", err)
+		fmt.Printf("GetGeneralInfoOfDepartment: Lỗi khi lấy phòng ban của user: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
 			"message": "Error retrieving user department information",
@@ -81,7 +79,7 @@ func GetGeneralInfoOfDepartment(c *gin.Context) {
 	}
 
 	if userDepartmentID == "" {
-		fmt.Printf("GetGeneralInfoOfDepartment: User %s has no department assigned\n", userIDStr)
+		fmt.Printf("GetGeneralInfoOfDepartment: User %s chưa được phân công phòng ban\n", userIDStr)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  "error",
 			"message": "User has no department assigned",
@@ -89,7 +87,6 @@ func GetGeneralInfoOfDepartment(c *gin.Context) {
 		return
 	}
 
-	// Get department information and member count
 	var department models.Department
 	var memberCount int
 
@@ -100,7 +97,7 @@ func GetGeneralInfoOfDepartment(c *gin.Context) {
 		WHERE d.id = $1`, userDepartmentID).Scan(&department.ID, &department.Name, &memberCount)
 
 	if err != nil {
-		fmt.Printf("GetGeneralInfoOfDepartment: Error getting department info: %v\n", err)
+		fmt.Printf("GetGeneralInfoOfDepartment: Lỗi khi lấy thông tin phòng ban: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
 			"message": "Error retrieving department information",
@@ -108,7 +105,6 @@ func GetGeneralInfoOfDepartment(c *gin.Context) {
 		return
 	}
 
-	// Prepare response data
 	responseData := gin.H{
 		"department": gin.H{
 			"id":           department.ID,
@@ -117,16 +113,15 @@ func GetGeneralInfoOfDepartment(c *gin.Context) {
 		},
 	}
 
-	fmt.Printf("GetGeneralInfoOfDepartment: Returning department %s with %d members\n", department.Name, memberCount)
+	fmt.Printf("GetGeneralInfoOfDepartment: Trả về phòng ban %s với %d thành viên\n", department.Name, memberCount)
 	c.JSON(http.StatusOK, gin.H{
 		"status": "success",
 		"data":   responseData,
 	})
 }
 
+// GetGeneralInfoOfProjectManagement lấy số lượng dự án và tổng số thành viên trong tất cả dự án cho một người dùng
 func GetGeneralInfoOfProjectManagement(c *gin.Context) {
-	// Get the number of projects and total number of members in all projects for a user
-	// Get user ID from context
 	userID, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -136,7 +131,7 @@ func GetGeneralInfoOfProjectManagement(c *gin.Context) {
 		return
 	}
 
-	// Get user roles from context
+	// Lấy roles của user từ context
 	roles, exists := c.Get("roles")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -146,7 +141,7 @@ func GetGeneralInfoOfProjectManagement(c *gin.Context) {
 		return
 	}
 
-	// Convert roles to string slice
+	// Chuyển đổi roles thành string slice
 	roleSlice, ok := roles.([]string)
 	if !ok {
 		fmt.Printf("GetGeneralInfoOfProjectManagement: Invalid role format: %T = %v\n", roles, roles)
@@ -169,13 +164,13 @@ func GetGeneralInfoOfProjectManagement(c *gin.Context) {
 
 	fmt.Printf("GetGeneralInfoOfProjectManagement: User ID: %v, Roles: %v\n", userIDStr, roleSlice)
 
-	// Get project counts by status and total member count for the user
+	// Lấy số lượng dự án theo trạng thái và tổng số thành viên cho user
 	var projectsNotStarted int
 	var projectsInProgress int
 	var projectsEnded int
 	var totalMemberCount int
 
-	// Query to get project counts by status
+	// Query để lấy số lượng dự án theo trạng thái
 	err := database.DB.QueryRow(c, `
 		SELECT
 			COUNT(CASE WHEN p.start_date > CURRENT_DATE THEN 1 END) as not_started,
@@ -187,7 +182,7 @@ func GetGeneralInfoOfProjectManagement(c *gin.Context) {
 		  AND (pm.left_at IS NULL OR pm.left_at > CURRENT_DATE)`, userIDStr).Scan(&projectsNotStarted, &projectsInProgress, &projectsEnded)
 
 	if err != nil {
-		fmt.Printf("GetGeneralInfoOfProjectManagement: Error getting project counts: %v\n", err)
+		fmt.Printf("GetGeneralInfoOfProjectManagement: Lỗi khi lấy số lượng dự án: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
 			"message": "Error retrieving project information",
@@ -195,7 +190,7 @@ func GetGeneralInfoOfProjectManagement(c *gin.Context) {
 		return
 	}
 
-	// Query to get the total number of members across all projects the user is involved in
+	// Query để lấy tổng số thành viên trong tất cả dự án mà user tham gia
 	err = database.DB.QueryRow(c, `
 		SELECT COUNT(DISTINCT pm_all.user_id)
 		FROM project_members pm_user
@@ -205,7 +200,7 @@ func GetGeneralInfoOfProjectManagement(c *gin.Context) {
 		  AND (pm_all.left_at IS NULL OR pm_all.left_at > CURRENT_DATE)`, userIDStr).Scan(&totalMemberCount)
 
 	if err != nil {
-		fmt.Printf("GetGeneralInfoOfProjectManagement: Error getting total member count: %v\n", err)
+		fmt.Printf("GetGeneralInfoOfProjectManagement: Lỗi khi lấy tổng số thành viên: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
 			"message": "Error retrieving project member information",
@@ -213,10 +208,10 @@ func GetGeneralInfoOfProjectManagement(c *gin.Context) {
 		return
 	}
 
-	// Calculate total project count
+	// Tính tổng số dự án
 	totalProjectCount := projectsNotStarted + projectsInProgress + projectsEnded
 
-	// Prepare response data
+	// Chuẩn bị dữ liệu response
 	responseData := gin.H{
 		"project_management": gin.H{
 			"total_project_count":  totalProjectCount,
@@ -227,7 +222,7 @@ func GetGeneralInfoOfProjectManagement(c *gin.Context) {
 		},
 	}
 
-	fmt.Printf("GetGeneralInfoOfProjectManagement: User %s has %d total projects (Not Started: %d, In Progress: %d, Ended: %d) with total %d members\n",
+	fmt.Printf("GetGeneralInfoOfProjectManagement: User %s có %d dự án tổng cộng (Chưa bắt đầu: %d, Đang tiến hành: %d, Đã kết thúc: %d) với tổng %d thành viên\n",
 		userIDStr, totalProjectCount, projectsNotStarted, projectsInProgress, projectsEnded, totalMemberCount)
 	c.JSON(http.StatusOK, gin.H{
 		"status": "success",
@@ -235,16 +230,16 @@ func GetGeneralInfoOfProjectManagement(c *gin.Context) {
 	})
 }
 
-// GetAdminDashboardStats returns statistics for admin dashboard
+// GetAdminDashboardStats trả về thống kê cho dashboard admin
 func GetAdminDashboardStats(c *gin.Context) {
-	fmt.Println("GetAdminDashboardStats: Fetching admin dashboard statistics")
+	fmt.Println("GetAdminDashboardStats: Lấy thống kê dashboard admin")
 
 	var stats AdminDashboardStats
 
-	// Get total number of users
+	// Lấy tổng số users
 	err := database.DB.QueryRow(c, "SELECT COUNT(*) FROM users").Scan(&stats.TotalUsers)
 	if err != nil {
-		fmt.Printf("GetAdminDashboardStats: Error getting total users: %v\n", err)
+		fmt.Printf("GetAdminDashboardStats: Lỗi khi lấy tổng số users: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
 			"message": "Error retrieving user statistics",
@@ -252,10 +247,10 @@ func GetAdminDashboardStats(c *gin.Context) {
 		return
 	}
 
-	// Get total number of CVs
+	// Lấy tổng số CVs
 	err = database.DB.QueryRow(c, "SELECT COUNT(*) FROM cv").Scan(&stats.TotalCVs)
 	if err != nil {
-		fmt.Printf("GetAdminDashboardStats: Error getting total CVs: %v\n", err)
+		fmt.Printf("GetAdminDashboardStats: Lỗi khi lấy tổng số CVs: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
 			"message": "Error retrieving CV statistics",
@@ -263,10 +258,10 @@ func GetAdminDashboardStats(c *gin.Context) {
 		return
 	}
 
-	// Get number of updated CVs
+	// Lấy số lượng CVs đã cập nhật
 	err = database.DB.QueryRow(c, "SELECT COUNT(*) FROM cv WHERE status = 'Đã cập nhật'").Scan(&stats.UpdatedCVs)
 	if err != nil {
-		fmt.Printf("GetAdminDashboardStats: Error getting updated CVs: %v\n", err)
+		fmt.Printf("GetAdminDashboardStats: Lỗi khi lấy số CVs đã cập nhật: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
 			"message": "Error retrieving updated CV statistics",
@@ -274,10 +269,10 @@ func GetAdminDashboardStats(c *gin.Context) {
 		return
 	}
 
-	// Get number of CV update requests
+	// Lấy số lượng yêu cầu cập nhật CV
 	err = database.DB.QueryRow(c, "SELECT COUNT(*) FROM cv_update_requests WHERE status = 'Đang yêu cầu'").Scan(&stats.UpdateRequests)
 	if err != nil {
-		fmt.Printf("GetAdminDashboardStats: Error getting update requests: %v\n", err)
+		fmt.Printf("GetAdminDashboardStats: Lỗi khi lấy số yêu cầu cập nhật: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
 			"message": "Error retrieving update request statistics",
@@ -285,10 +280,10 @@ func GetAdminDashboardStats(c *gin.Context) {
 		return
 	}
 
-	// Get total number of projects
+	// Lấy tổng số projects
 	err = database.DB.QueryRow(c, "SELECT COUNT(*) FROM projects").Scan(&stats.TotalProjects)
 	if err != nil {
-		fmt.Printf("GetAdminDashboardStats: Error getting total projects: %v\n", err)
+		fmt.Printf("GetAdminDashboardStats: Lỗi khi lấy tổng số projects: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
 			"message": "Error retrieving project statistics",
@@ -296,10 +291,10 @@ func GetAdminDashboardStats(c *gin.Context) {
 		return
 	}
 
-	// Get total number of departments
+	// Lấy tổng số departments
 	err = database.DB.QueryRow(c, "SELECT COUNT(*) FROM departments").Scan(&stats.TotalDepartments)
 	if err != nil {
-		fmt.Printf("GetAdminDashboardStats: Error getting total departments: %v\n", err)
+		fmt.Printf("GetAdminDashboardStats: Lỗi khi lấy tổng số departments: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
 			"message": "Error retrieving department statistics",
@@ -307,7 +302,7 @@ func GetAdminDashboardStats(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("GetAdminDashboardStats: Users: %d, CVs: %d, Updated CVs: %d, Update Requests: %d, Projects: %d, Departments: %d\n",
+	fmt.Printf("GetAdminDashboardStats: Users: %d, CVs: %d, CVs đã cập nhật: %d, Yêu cầu cập nhật: %d, Projects: %d, Departments: %d\n",
 		stats.TotalUsers, stats.TotalCVs, stats.UpdatedCVs, stats.UpdateRequests, stats.TotalProjects, stats.TotalDepartments)
 
 	c.JSON(http.StatusOK, gin.H{

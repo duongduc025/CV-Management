@@ -18,7 +18,7 @@ import (
 func GetUsersInDepartment(c *gin.Context) {
 	fmt.Printf("=== GetUsersInDepartment Debug Info ===\n")
 
-	// Get user ID and roles from context (set by AuthMiddleware)
+	// Lấy user ID và roles từ context (được set bởi AuthMiddleware)
 	userID, userIDExists := c.Get("userID")
 	roles, rolesExist := c.Get("roles")
 
@@ -53,12 +53,12 @@ func GetUsersInDepartment(c *gin.Context) {
 	fmt.Printf("GetUsersInDepartment: User ID: %v, Roles: %v\n", userID, roleSlice)
 	fmt.Printf("GetUsersInDepartment: Checking access for department: %s\n", c.Param("department_id"))
 
-	// Check if user has Admin or BUL/Lead role
-	// Admin users always have access to this function
+	// Kiểm tra user có vai trò Admin hoặc BUL/Lead không
+	// Admin users luôn có quyền truy cập function này
 	isAdmin := contains(roleSlice, "Admin")
 	isBULLead := contains(roleSlice, "BUL/Lead")
 
-	// Admin users always have unrestricted access
+	// Admin users luôn có quyền truy cập không giới hạn
 	if isAdmin {
 		fmt.Printf("GetUsersInDepartment: Admin access granted - proceeding without restrictions\n")
 	} else if isBULLead {
@@ -74,7 +74,7 @@ func GetUsersInDepartment(c *gin.Context) {
 
 	fmt.Printf("GetUsersInDepartment: Access granted - Admin: %v, BUL/Lead: %v\n", isAdmin, isBULLead)
 
-	// Get department ID from URL parameter
+	// Lấy department ID từ URL parameter
 	departmentID := c.Param("department_id")
 	if departmentID == "" {
 		fmt.Println("GetUsersInDepartment: Department ID parameter missing")
@@ -87,7 +87,7 @@ func GetUsersInDepartment(c *gin.Context) {
 
 	fmt.Printf("GetUsersInDepartment: Fetching users from department %s\n", departmentID)
 
-	// Query database for users in the specified department
+	// Query database cho users trong department được chỉ định
 	rows, err := database.DB.Query(c, `
 		SELECT u.id, u.employee_code, u.full_name, u.email, u.department_id,
 		       COALESCE(d.name, '') as department_name
@@ -130,7 +130,7 @@ func GetUsersInDepartment(c *gin.Context) {
 			}
 		}
 
-		// Get user roles
+		// Lấy user roles
 		userRoles, err := getUserRoles(c, user.ID)
 		if err != nil {
 			fmt.Printf("Warning: Could not fetch roles for user %s: %v\n", user.ID, err)
@@ -141,7 +141,7 @@ func GetUsersInDepartment(c *gin.Context) {
 		users = append(users, user)
 	}
 
-	// Check for errors during iteration
+	// Kiểm tra lỗi trong quá trình iteration
 	if err = rows.Err(); err != nil {
 		fmt.Printf("GetUsersInDepartment iteration error: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -162,7 +162,7 @@ func GetUsersInDepartment(c *gin.Context) {
 func GetUsersInProject(c *gin.Context) {
 	fmt.Printf("=== GetUsersInProject Debug Info ===\n")
 
-	// Get user ID and roles from context (set by AuthMiddleware)
+	// Lấy user ID và roles từ context (được set bởi AuthMiddleware)
 	userID, userIDExists := c.Get("userID")
 	roles, rolesExist := c.Get("roles")
 
@@ -196,7 +196,7 @@ func GetUsersInProject(c *gin.Context) {
 
 	fmt.Printf("GetUsersInProject: User ID: %v, Roles: %v\n", userID, roleSlice)
 
-	// Check if user has PM or Admin role
+	// Kiểm tra user có vai trò PM hoặc Admin không
 	hasAccess := contains(roleSlice, "PM") || contains(roleSlice, "Admin")
 	if !hasAccess {
 		fmt.Printf("GetUsersInProject: Access denied - user does not have PM or Admin role\n")
@@ -207,10 +207,10 @@ func GetUsersInProject(c *gin.Context) {
 		return
 	}
 
-	// Check if user is Admin for different logic
+	// Kiểm tra user có phải Admin không để logic khác nhau
 	isAdmin := contains(roleSlice, "Admin")
 
-	// Get project ID from URL parameter
+	// Lấy project ID từ URL parameter
 	projectID := c.Param("project_id")
 	if projectID == "" {
 		fmt.Println("GetUsersInProject: Project ID parameter missing")
@@ -223,8 +223,8 @@ func GetUsersInProject(c *gin.Context) {
 
 	fmt.Printf("GetUsersInProject: Fetching users from project %s\n", projectID)
 
-	// For PM users, verify they are a member of this project
-	// Admin users can access any project without membership check
+	// Đối với PM users, xác minh họ là thành viên của project này
+	// Admin users có thể truy cập bất kỳ project nào mà không cần kiểm tra membership
 	if !isAdmin {
 		var pmMemberCount int
 		err := database.DB.QueryRow(c, `
@@ -254,7 +254,7 @@ func GetUsersInProject(c *gin.Context) {
 		fmt.Printf("GetUsersInProject: Admin user %s accessing project %s (no membership check required)\n", userID, projectID)
 	}
 
-	// Query database for users in the specified project (including those who have left)
+	// Query database cho users trong project được chỉ định (bao gồm cả những người đã rời đi)
 	rows, err := database.DB.Query(c, `
 		SELECT u.id, u.employee_code, u.full_name, u.email, u.department_id,
 		       COALESCE(d.name, '') as department_name,
@@ -277,7 +277,7 @@ func GetUsersInProject(c *gin.Context) {
 	}
 	defer rows.Close()
 
-	// Structure to hold user with project role info
+	// Cấu trúc để giữ user với thông tin vai trò project
 	type UserWithProjectRole struct {
 		models.User
 		RoleInProject string `json:"role_in_project,omitempty"`
@@ -303,7 +303,7 @@ func GetUsersInProject(c *gin.Context) {
 			return
 		}
 
-		// Set department if available
+		// Đặt department nếu có
 		if userWithRole.DepartmentID != "" && deptName != "" {
 			userWithRole.Department = models.Department{
 				ID:   userWithRole.DepartmentID,
@@ -311,7 +311,7 @@ func GetUsersInProject(c *gin.Context) {
 			}
 		}
 
-		// Set project role information
+		// Đặt thông tin vai trò project
 		if roleInProject != nil {
 			userWithRole.RoleInProject = roleInProject.(string)
 		}
@@ -322,7 +322,7 @@ func GetUsersInProject(c *gin.Context) {
 			userWithRole.LeftAt = leftAt.(time.Time).Format("2006-01-02")
 		}
 
-		// Get user roles
+		// Lấy user roles
 		userRoles, err := getUserRoles(c, userWithRole.ID)
 		if err != nil {
 			fmt.Printf("Warning: Could not fetch roles for user %s: %v\n", userWithRole.ID, err)
@@ -333,7 +333,7 @@ func GetUsersInProject(c *gin.Context) {
 		users = append(users, userWithRole)
 	}
 
-	// Check for errors during iteration
+	// Kiểm tra lỗi trong quá trình iteration
 	if err = rows.Err(); err != nil {
 		fmt.Printf("GetUsersInProject iteration error: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -354,7 +354,7 @@ func GetUsersInProject(c *gin.Context) {
 func GetUsers(c *gin.Context) {
 	fmt.Println("GetUsers: Fetching all users from database")
 
-	// Fetch all users from the database
+	// Lấy tất cả users từ database
 	allUsers, err := getAllUsers(c)
 	if err != nil {
 		fmt.Printf("GetUsers error: %v\n", err)
@@ -376,7 +376,7 @@ func GetUsers(c *gin.Context) {
 func GetUsersPaginated(c *gin.Context) {
 	fmt.Println("GetUsersPaginated: Fetching paginated users from database")
 
-	// Parse page parameter from query string
+	// Parse page parameter từ query string
 	pageStr := c.DefaultQuery("page", "1")
 	page, err := strconv.Atoi(pageStr)
 	if err != nil || page < 1 {
@@ -389,7 +389,7 @@ func GetUsersPaginated(c *gin.Context) {
 
 	fmt.Printf("GetUsersPaginated: Fetching page %d with offset %d\n", page, offset)
 
-	// Fetch paginated users from the database
+	// Lấy paginated users từ database
 	paginatedResponse, err := getUsersPaginated(c, page, perPage, offset)
 	if err != nil {
 		fmt.Printf("GetUsersPaginated error: %v\n", err)
@@ -422,7 +422,7 @@ func GetUsersByRole(c *gin.Context) {
 
 	fmt.Printf("GetUsersByRole: Fetching users with role: %s\n", roleName)
 
-	// Query database for users with the specified role
+	// Query database cho users với vai trò được chỉ định
 	rows, err := database.DB.Query(c, `
 		SELECT u.id, u.employee_code, u.full_name, u.email, u.department_id,
 		       COALESCE(d.name, '') as department_name
@@ -467,7 +467,7 @@ func GetUsersByRole(c *gin.Context) {
 			}
 		}
 
-		// Get user roles
+		// Lấy user roles
 		userRoles, err := getUserRoles(c, user.ID)
 		if err != nil {
 			fmt.Printf("Warning: Could not fetch roles for user %s: %v\n", user.ID, err)
@@ -478,7 +478,7 @@ func GetUsersByRole(c *gin.Context) {
 		users = append(users, user)
 	}
 
-	// Check for errors during iteration
+	// Kiểm tra lỗi trong quá trình iteration
 	if err = rows.Err(); err != nil {
 		fmt.Printf("GetUsersByRole iteration error: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -499,7 +499,7 @@ func GetUsersByRole(c *gin.Context) {
 func GetPMUsers(c *gin.Context) {
 	fmt.Println("GetPMUsers: Fetching all users with PM role")
 
-	// Query database for users with PM role
+	// Query database cho users với vai trò PM
 	rows, err := database.DB.Query(c, `
 		SELECT u.id, u.employee_code, u.full_name, u.email, u.department_id,
 		       COALESCE(d.name, '') as department_name
@@ -544,7 +544,7 @@ func GetPMUsers(c *gin.Context) {
 			}
 		}
 
-		// Get user roles
+		// Lấy user roles
 		userRoles, err := getUserRoles(c, user.ID)
 		if err != nil {
 			fmt.Printf("Warning: Could not fetch roles for PM user %s: %v\n", user.ID, err)
@@ -555,7 +555,7 @@ func GetPMUsers(c *gin.Context) {
 		users = append(users, user)
 	}
 
-	// Check for errors during iteration
+	// Kiểm tra lỗi trong quá trình iteration
 	if err = rows.Err(); err != nil {
 		fmt.Printf("GetPMUsers iteration error: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -576,7 +576,7 @@ func GetPMUsers(c *gin.Context) {
 func GetUserByID(c *gin.Context) {
 	id := c.Param("id")
 
-	// TODO: Get actual data from database
+	// TODO: Lấy dữ liệu thực từ database
 	// Mock data for now
 	user := models.User{
 		ID:           id,
@@ -608,7 +608,7 @@ func CreateUser(c *gin.Context) {
 		return
 	}
 
-	// TODO: When implementing this function, ensure Employee role is automatically added
+	// TODO: Khi implement function này, đảm bảo vai trò Employee được tự động thêm
 	// Example: Automatically add Employee role if not present in user.Roles
 	// hasEmployeeRole := false
 	// for _, role := range user.Roles {
@@ -621,7 +621,7 @@ func CreateUser(c *gin.Context) {
 	//     user.Roles = append(user.Roles, models.Role{Name: "Employee"})
 	// }
 
-	// TODO: Save to database
+	// TODO: Lưu vào database
 	// Mock response for now
 	user.ID = "123e4567-e89b-12d3-a456-426614174003" // Would be generated by DB
 
@@ -647,7 +647,7 @@ func UpdateUser(c *gin.Context) {
 
 	fmt.Printf("UpdateUser: Attempting to update user with ID: %s\n", id)
 
-	// Define a struct for update request data
+	// Định nghĩa struct cho dữ liệu update request
 	type UpdateUserRequest struct {
 		EmployeeCode string   `json:"employee_code" binding:"required"`
 		FullName     string   `json:"full_name" binding:"required"`
@@ -668,7 +668,7 @@ func UpdateUser(c *gin.Context) {
 
 	fmt.Printf("UpdateUser: Update data: %+v\n", updateData)
 
-	// Check if user exists
+	// Kiểm tra user có tồn tại không
 	var userExists bool
 	err := database.DB.QueryRow(c, "SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)", id).Scan(&userExists)
 	if err != nil {
@@ -689,7 +689,7 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
-	// Check if email is already taken by another user
+	// Kiểm tra email đã được sử dụng bởi user khác chưa
 	var emailExists bool
 	err = database.DB.QueryRow(c, "SELECT EXISTS(SELECT 1 FROM users WHERE email = $1 AND id != $2)", updateData.Email, id).Scan(&emailExists)
 	if err != nil {
@@ -710,7 +710,7 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
-	// Start a transaction
+	// Bắt đầu transaction
 	tx, err := database.DB.Begin(c)
 	if err != nil {
 		fmt.Printf("UpdateUser transaction begin error: %v\n", err)
@@ -722,7 +722,7 @@ func UpdateUser(c *gin.Context) {
 	}
 	defer tx.Rollback(c)
 
-	// Update user basic information
+	// Cập nhật thông tin cơ bản của user
 	_, err = tx.Exec(c, `
 		UPDATE users
 		SET employee_code = $1, full_name = $2, email = $3, department_id = $4
@@ -740,9 +740,9 @@ func UpdateUser(c *gin.Context) {
 
 	fmt.Printf("UpdateUser: Updated basic user information for user %s\n", id)
 
-	// Update user roles if provided
+	// Cập nhật user roles nếu được cung cấp
 	if len(updateData.RoleNames) > 0 {
-		// First, delete existing roles
+		// Đầu tiên, xóa roles hiện có
 		_, err = tx.Exec(c, "DELETE FROM user_roles WHERE user_id = $1", id)
 		if err != nil {
 			fmt.Printf("UpdateUser error deleting existing roles: %v\n", err)
@@ -753,7 +753,7 @@ func UpdateUser(c *gin.Context) {
 			return
 		}
 
-		// Then, add new roles
+		// Sau đó, thêm roles mới
 		for _, roleName := range updateData.RoleNames {
 			var roleID string
 			err = tx.QueryRow(c, "SELECT id FROM roles WHERE name = $1", roleName).Scan(&roleID)
@@ -780,7 +780,7 @@ func UpdateUser(c *gin.Context) {
 		fmt.Printf("UpdateUser: Updated roles for user %s: %v\n", id, updateData.RoleNames)
 	}
 
-	// Commit the transaction
+	// Commit transaction
 	err = tx.Commit(c)
 	if err != nil {
 		fmt.Printf("UpdateUser transaction commit error: %v\n", err)
@@ -791,7 +791,7 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
-	// Fetch the updated user data to return
+	// Lấy dữ liệu user đã cập nhật để trả về
 	updatedUser, err := getSingleUserByID(c, id)
 	if err != nil {
 		fmt.Printf("UpdateUser error fetching updated user: %v\n", err)
@@ -825,7 +825,7 @@ func DeleteUser(c *gin.Context) {
 
 	fmt.Printf("DeleteUser: Attempting to delete user with ID: %s\n", id)
 
-	// Get user ID from context (set by AuthMiddleware)
+	// Lấy user ID từ context (được set bởi AuthMiddleware)
 	requestUserID, userIDExists := c.Get("userID")
 	if !userIDExists {
 		fmt.Println("DeleteUser: Request user ID not found in context")
@@ -836,7 +836,7 @@ func DeleteUser(c *gin.Context) {
 		return
 	}
 
-	// Prevent users from deleting themselves
+	// Ngăn users xóa chính họ
 	if requestUserID == id {
 		fmt.Printf("DeleteUser: User %s attempted to delete themselves\n", id)
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -846,7 +846,7 @@ func DeleteUser(c *gin.Context) {
 		return
 	}
 
-	// Check if user exists before attempting deletion
+	// Kiểm tra user có tồn tại trước khi thử xóa
 	var userExists bool
 	err := database.DB.QueryRow(c, "SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)", id).Scan(&userExists)
 	if err != nil {
@@ -867,7 +867,7 @@ func DeleteUser(c *gin.Context) {
 		return
 	}
 
-	// Start a transaction to ensure data consistency
+	// Bắt đầu transaction để đảm bảo tính nhất quán dữ liệu
 	tx, err := database.DB.Begin(c)
 	if err != nil {
 		fmt.Printf("DeleteUser transaction begin error: %v\n", err)
@@ -879,9 +879,9 @@ func DeleteUser(c *gin.Context) {
 	}
 	defer tx.Rollback(c)
 
-	// Delete in proper order to handle foreign key constraints
+	// Xóa theo thứ tự đúng để xử lý foreign key constraints
 
-	// 1. Delete user roles
+	// 1. Xóa user roles
 	_, err = tx.Exec(c, "DELETE FROM user_roles WHERE user_id = $1", id)
 	if err != nil {
 		fmt.Printf("DeleteUser error deleting user roles: %v\n", err)
@@ -893,7 +893,7 @@ func DeleteUser(c *gin.Context) {
 	}
 	fmt.Printf("DeleteUser: Deleted user roles for user %s\n", id)
 
-	// 2. Delete project members (hard delete to avoid foreign key constraint)
+	// 2. Xóa project members (hard delete để tránh foreign key constraint)
 	_, err = tx.Exec(c, "DELETE FROM project_members WHERE user_id = $1", id)
 	if err != nil {
 		fmt.Printf("DeleteUser error deleting project members: %v\n", err)
@@ -905,7 +905,7 @@ func DeleteUser(c *gin.Context) {
 	}
 	fmt.Printf("DeleteUser: Removed user %s from all projects\n", id)
 
-	// 3. Delete CV update requests (CASCADE will handle cv_details)
+	// 3. Xóa CV update requests (CASCADE sẽ xử lý cv_details)
 	_, err = tx.Exec(c, "DELETE FROM cv_update_requests WHERE cv_id IN (SELECT id FROM cv WHERE user_id = $1)", id)
 	if err != nil {
 		fmt.Printf("DeleteUser error deleting CV update requests: %v\n", err)
@@ -917,7 +917,7 @@ func DeleteUser(c *gin.Context) {
 	}
 	fmt.Printf("DeleteUser: Deleted CV update requests for user %s\n", id)
 
-	// 4. Delete CV (CASCADE will handle cv_details)
+	// 4. Xóa CV (CASCADE sẽ xử lý cv_details)
 	_, err = tx.Exec(c, "DELETE FROM cv WHERE user_id = $1", id)
 	if err != nil {
 		fmt.Printf("DeleteUser error deleting CV: %v\n", err)
@@ -929,7 +929,7 @@ func DeleteUser(c *gin.Context) {
 	}
 	fmt.Printf("DeleteUser: Deleted CV for user %s\n", id)
 
-	// 5. Finally, delete the user
+	// 5. Cuối cùng, xóa user
 	result, err := tx.Exec(c, "DELETE FROM users WHERE id = $1", id)
 	if err != nil {
 		fmt.Printf("DeleteUser error deleting user: %v\n", err)
@@ -940,7 +940,7 @@ func DeleteUser(c *gin.Context) {
 		return
 	}
 
-	// Check if user was actually deleted
+	// Kiểm tra user có thực sự bị xóa không
 	rowsAffected := result.RowsAffected()
 	if rowsAffected == 0 {
 		fmt.Printf("DeleteUser: No rows affected when deleting user %s\n", id)
@@ -951,7 +951,7 @@ func DeleteUser(c *gin.Context) {
 		return
 	}
 
-	// Commit the transaction
+	// Commit transaction
 	err = tx.Commit(c)
 	if err != nil {
 		fmt.Printf("DeleteUser transaction commit error: %v\n", err)
@@ -976,7 +976,7 @@ func DeleteUser(c *gin.Context) {
 func GetRoles(c *gin.Context) {
 	fmt.Println("GetRoles: Fetching roles from database")
 
-	// Query database for all roles
+	// Query database cho tất cả roles
 	rows, err := database.DB.Query(c, "SELECT id, name FROM roles ORDER BY name")
 	if err != nil {
 		fmt.Printf("GetRoles error: %v\n", err)
@@ -988,7 +988,7 @@ func GetRoles(c *gin.Context) {
 	}
 	defer rows.Close()
 
-	// Parse rows into role objects
+	// Parse rows thành role objects
 	var roles []models.Role
 	for rows.Next() {
 		var role models.Role
@@ -1003,7 +1003,7 @@ func GetRoles(c *gin.Context) {
 		roles = append(roles, role)
 	}
 
-	// Check for errors during iteration
+	// Kiểm tra lỗi trong quá trình iteration
 	if err = rows.Err(); err != nil {
 		fmt.Printf("GetRoles iteration error: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -1020,12 +1020,12 @@ func GetRoles(c *gin.Context) {
 	})
 }
 
-// Helper function to check if a slice contains a string
+// Helper function để kiểm tra slice có chứa string không
 func contains(slice []string, item string) bool {
 	return slices.Contains(slice, item)
 }
 
-// getAllUsers fetches all users from the database (Admin access)
+// getAllUsers lấy tất cả users từ database (Admin access)
 func getAllUsers(c *gin.Context) ([]models.User, error) {
 	fmt.Println("getAllUsers: Fetching all users from database")
 
@@ -1060,7 +1060,7 @@ func getAllUsers(c *gin.Context) ([]models.User, error) {
 			return nil, fmt.Errorf("error scanning user: %w", err)
 		}
 
-		// Set department if available
+		// Đặt department nếu có
 		if user.DepartmentID != "" && deptName != "" {
 			user.Department = models.Department{
 				ID:   user.DepartmentID,
@@ -1068,11 +1068,11 @@ func getAllUsers(c *gin.Context) ([]models.User, error) {
 			}
 		}
 
-		// Parse project names from comma-separated string
+		// Parse project names từ comma-separated string
 		if projectNamesStr != "" {
-			// Split the comma-separated project names
+			// Split comma-separated project names
 			projectNames := strings.Split(projectNamesStr, ", ")
-			// Remove any empty strings
+			// Xóa các empty strings
 			var filteredProjects []string
 			for _, name := range projectNames {
 				if strings.TrimSpace(name) != "" {
@@ -1081,10 +1081,10 @@ func getAllUsers(c *gin.Context) ([]models.User, error) {
 			}
 			user.Projects = filteredProjects
 		} else {
-			user.Projects = []string{} // Empty slice instead of nil
+			user.Projects = []string{} // Empty slice thay vì nil
 		}
 
-		// Get user roles
+		// Lấy user roles
 		userRoles, err := getUserRoles(c, user.ID)
 		if err != nil {
 			fmt.Printf("Warning: Could not fetch roles for user %s: %v\n", user.ID, err)
@@ -1103,23 +1103,23 @@ func getAllUsers(c *gin.Context) ([]models.User, error) {
 	return users, nil
 }
 
-// getUsersPaginated fetches paginated users from the database (Admin access)
+// getUsersPaginated lấy paginated users từ database (Admin access)
 func getUsersPaginated(c *gin.Context, page, perPage, offset int) (models.PaginatedUsersResponse, error) {
 	fmt.Printf("getUsersPaginated: Fetching page %d with %d users per page (offset: %d)\n", page, perPage, offset)
 
-	// First, get the total count of users
+	// Đầu tiên, lấy tổng số users
 	var totalUsers int
 	err := database.DB.QueryRow(c, `SELECT COUNT(*) FROM users`).Scan(&totalUsers)
 	if err != nil {
 		return models.PaginatedUsersResponse{}, fmt.Errorf("error counting users: %w", err)
 	}
 
-	// Calculate pagination metadata
+	// Tính pagination metadata
 	totalPages := (totalUsers + perPage - 1) / perPage // Ceiling division
 	hasNext := page < totalPages
 	hasPrev := page > 1
 
-	// Fetch the paginated users
+	// Lấy paginated users
 	rows, err := database.DB.Query(c, `
 		SELECT u.id, u.employee_code, u.full_name, u.email, u.department_id,
 		       COALESCE(d.name, '') as department_name,
@@ -1152,7 +1152,7 @@ func getUsersPaginated(c *gin.Context, page, perPage, offset int) (models.Pagina
 			return models.PaginatedUsersResponse{}, fmt.Errorf("error scanning user: %w", err)
 		}
 
-		// Set department if available
+		// Đặt department nếu có
 		if user.DepartmentID != "" && deptName != "" {
 			user.Department = models.Department{
 				ID:   user.DepartmentID,
@@ -1160,11 +1160,11 @@ func getUsersPaginated(c *gin.Context, page, perPage, offset int) (models.Pagina
 			}
 		}
 
-		// Parse project names from comma-separated string
+		// Parse project names từ comma-separated string
 		if projectNamesStr != "" {
-			// Split the comma-separated project names
+			// Split comma-separated project names
 			projectNames := strings.Split(projectNamesStr, ", ")
-			// Remove any empty strings
+			// Xóa các empty strings
 			var filteredProjects []string
 			for _, name := range projectNames {
 				if strings.TrimSpace(name) != "" {
@@ -1173,10 +1173,10 @@ func getUsersPaginated(c *gin.Context, page, perPage, offset int) (models.Pagina
 			}
 			user.Projects = filteredProjects
 		} else {
-			user.Projects = []string{} // Empty slice instead of nil
+			user.Projects = []string{} // Empty slice thay vì nil
 		}
 
-		// Get user roles
+		// Lấy user roles
 		userRoles, err := getUserRoles(c, user.ID)
 		if err != nil {
 			fmt.Printf("Warning: Could not fetch roles for user %s: %v\n", user.ID, err)
@@ -1191,7 +1191,7 @@ func getUsersPaginated(c *gin.Context, page, perPage, offset int) (models.Pagina
 		return models.PaginatedUsersResponse{}, fmt.Errorf("error iterating users: %w", err)
 	}
 
-	// Build the paginated response
+	// Xây dựng paginated response
 	response := models.PaginatedUsersResponse{
 		Users:       users,
 		CurrentPage: page,
@@ -1208,7 +1208,7 @@ func getUsersPaginated(c *gin.Context, page, perPage, offset int) (models.Pagina
 	return response, nil
 }
 
-// getUserRoles fetches roles for a specific user
+// getUserRoles lấy roles cho một user cụ thể
 func getUserRoles(c *gin.Context, userID string) ([]models.Role, error) {
 	rows, err := database.DB.Query(c, `
 		SELECT r.id, r.name
@@ -1239,7 +1239,7 @@ func getUserRoles(c *gin.Context, userID string) ([]models.Role, error) {
 	return roles, nil
 }
 
-// getUsersFromPMProjects fetches users from projects where the PM is a member
+// getUsersFromPMProjects lấy users từ projects mà PM là thành viên
 func getUsersFromPMProjects(c *gin.Context, pmUserID string) ([]models.User, error) {
 	fmt.Printf("getUsersFromPMProjects: Fetching users from projects where PM %s is a member\n", pmUserID)
 
@@ -1270,7 +1270,7 @@ func getUsersFromPMProjects(c *gin.Context, pmUserID string) ([]models.User, err
 			return nil, fmt.Errorf("error scanning user: %w", err)
 		}
 
-		// Set department if available
+		// Đặt department nếu có
 		if user.DepartmentID != "" && deptName != "" {
 			user.Department = models.Department{
 				ID:   user.DepartmentID,
@@ -1278,7 +1278,7 @@ func getUsersFromPMProjects(c *gin.Context, pmUserID string) ([]models.User, err
 			}
 		}
 
-		// Get user roles
+		// Lấy user roles
 		userRoles, err := getUserRoles(c, user.ID)
 		if err != nil {
 			fmt.Printf("Warning: Could not fetch roles for user %s: %v\n", user.ID, err)
@@ -1297,11 +1297,11 @@ func getUsersFromPMProjects(c *gin.Context, pmUserID string) ([]models.User, err
 	return users, nil
 }
 
-// getUsersFromSameDepartment fetches users from the same department as the BUL/Lead
+// getUsersFromSameDepartment lấy users từ department giống với BUL/Lead
 func getUsersFromSameDepartment(c *gin.Context, bulUserID string) ([]models.User, error) {
 	fmt.Printf("getUsersFromSameDepartment: Fetching users from same department as BUL %s\n", bulUserID)
 
-	// First, get the department of the BUL/Lead user
+	// Đầu tiên, lấy department của BUL/Lead user
 	var bulDepartmentID string
 	err := database.DB.QueryRow(c, `
 		SELECT department_id
@@ -1319,7 +1319,7 @@ func getUsersFromSameDepartment(c *gin.Context, bulUserID string) ([]models.User
 
 	fmt.Printf("getUsersFromSameDepartment: BUL department ID: %s\n", bulDepartmentID)
 
-	// Now get all users from the same department
+	// Bây giờ lấy tất cả users từ department giống nhau
 	rows, err := database.DB.Query(c, `
 		SELECT u.id, u.employee_code, u.full_name, u.email, u.department_id,
 		       COALESCE(d.name, '') as department_name
@@ -1344,7 +1344,7 @@ func getUsersFromSameDepartment(c *gin.Context, bulUserID string) ([]models.User
 			return nil, fmt.Errorf("error scanning user: %w", err)
 		}
 
-		// Set department if available
+		// Đặt department nếu có
 		if user.DepartmentID != "" && deptName != "" {
 			user.Department = models.Department{
 				ID:   user.DepartmentID,
@@ -1352,7 +1352,7 @@ func getUsersFromSameDepartment(c *gin.Context, bulUserID string) ([]models.User
 			}
 		}
 
-		// Get user roles
+		// Lấy user roles
 		userRoles, err := getUserRoles(c, user.ID)
 		if err != nil {
 			fmt.Printf("Warning: Could not fetch roles for user %s: %v\n", user.ID, err)
@@ -1371,7 +1371,7 @@ func getUsersFromSameDepartment(c *gin.Context, bulUserID string) ([]models.User
 	return users, nil
 }
 
-// getSingleUserByID fetches a single user by ID with all related data
+// getSingleUserByID lấy một user theo ID với tất cả dữ liệu liên quan
 func getSingleUserByID(c *gin.Context, userID string) (models.User, error) {
 	fmt.Printf("getSingleUserByID: Fetching user with ID: %s\n", userID)
 
@@ -1398,7 +1398,7 @@ func getSingleUserByID(c *gin.Context, userID string) (models.User, error) {
 		return user, fmt.Errorf("error querying user: %w", err)
 	}
 
-	// Set department if available
+	// Đặt department nếu có
 	if user.DepartmentID != "" && deptName != "" {
 		user.Department = models.Department{
 			ID:   user.DepartmentID,
@@ -1406,11 +1406,11 @@ func getSingleUserByID(c *gin.Context, userID string) (models.User, error) {
 		}
 	}
 
-	// Parse project names from comma-separated string
+	// Parse project names từ comma-separated string
 	if projectNamesStr != "" {
-		// Split the comma-separated project names
+		// Split comma-separated project names
 		projectNames := strings.Split(projectNamesStr, ", ")
-		// Remove any empty strings
+		// Xóa các empty strings
 		var filteredProjects []string
 		for _, name := range projectNames {
 			if strings.TrimSpace(name) != "" {
@@ -1419,10 +1419,10 @@ func getSingleUserByID(c *gin.Context, userID string) (models.User, error) {
 		}
 		user.Projects = filteredProjects
 	} else {
-		user.Projects = []string{} // Empty slice instead of nil
+		user.Projects = []string{} // Empty slice thay vì nil
 	}
 
-	// Get user roles
+	// Lấy user roles
 	userRoles, err := getUserRoles(c, user.ID)
 	if err != nil {
 		fmt.Printf("Warning: Could not fetch roles for user %s: %v\n", user.ID, err)

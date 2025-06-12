@@ -17,13 +17,45 @@ CREATE TABLE users (
     full_name VARCHAR(255) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
     department_id UUID REFERENCES departments(id),
+    password TEXT,
     created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Bảng roles
+CREATE TABLE roles (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(50) NOT NULL UNIQUE
+);
+
+-- Bảng user_roles
+CREATE TABLE user_roles (
+    user_id UUID REFERENCES users(id),
+    role_id UUID REFERENCES roles(id),
+    PRIMARY KEY (user_id, role_id)
+);
+
+-- Bảng projects
+CREATE TABLE projects (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(255) NOT NULL,
+    start_date DATE,
+    end_date DATE
+);
+
+-- Bảng project_members
+CREATE TABLE project_members (
+    project_id UUID REFERENCES projects(id),
+    user_id UUID REFERENCES users(id),
+    role_in_project VARCHAR(255),
+    joined_at DATE,
+    left_at DATE,
+    PRIMARY KEY (project_id, user_id)
 );
 
 -- Bảng cv
 CREATE TABLE cv (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
     last_updated_by UUID REFERENCES users(id) ON DELETE SET NULL,
     last_updated_at TIMESTAMP,
     status VARCHAR(20) NOT NULL CHECK (status IN ('Đã cập nhật', 'Chưa cập nhật', 'Hủy yêu cầu'))
@@ -41,7 +73,9 @@ CREATE TABLE cv_details (
     email TEXT,
     phone TEXT,
     address TEXT,
-    created_at TIMESTAMP DEFAULT NOW()
+    created_at TIMESTAMP DEFAULT NOW(),
+    cvpath TEXT,
+    portraitpath TEXT
 );
 
 -- Bảng cv_education
@@ -80,36 +114,4 @@ CREATE TABLE cv_update_requests (
     status VARCHAR(20) NOT NULL CHECK (status IN ('Đang yêu cầu', 'Đã xử lý', 'Đã huỷ')),
     is_read BOOLEAN DEFAULT FALSE,
     content TEXT
-);
-
-
--- Bảng roles
-CREATE TABLE roles (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    name VARCHAR(50) NOT NULL UNIQUE
-);
-
--- Bảng user_roles
-CREATE TABLE user_roles (
-    user_id UUID REFERENCES users(id),
-    role_id UUID REFERENCES roles(id),
-    PRIMARY KEY (user_id, role_id)
-);
-
--- Bảng projects
-CREATE TABLE projects (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    name VARCHAR(255) NOT NULL,
-    start_date DATE,
-    end_date DATE
-);
-
--- Bảng project_members
-CREATE TABLE project_members (
-    project_id UUID REFERENCES projects(id),
-    user_id UUID REFERENCES users(id),
-    role_in_project VARCHAR(255),
-    joined_at DATE,
-    left_at DATE,
-    PRIMARY KEY (project_id, user_id)
 );

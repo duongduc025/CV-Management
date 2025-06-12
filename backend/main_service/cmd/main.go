@@ -13,26 +13,25 @@ import (
 )
 
 func main() {
-	// Load environment variables
+	// Tải các biến môi trường
 	if err := godotenv.Load(); err != nil {
-		log.Printf("Warning: .env file not found: %v", err)
+		log.Printf("Cảnh báo: Không tìm thấy file .env: %v", err)
 	}
 
-	// Initialize database connection
+	// Khởi tạo kết nối database
 	if err := database.InitDB(); err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		log.Fatalf("Lỗi kết nối database: %v", err)
 	}
 	defer database.CloseDB()
 
-	// Initialize SSE manager
+	// Khởi tạo SSE manager
 	handlers.InitSSEManager()
 
-	// Set Gin mode based on environment
 	if os.Getenv("ENV") == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
-	// Initialize router
+	// Khởi tạo router
 	router := gin.Default()
 
 	// CORS middleware
@@ -52,15 +51,15 @@ func main() {
 	// API routes
 	api := router.Group("/api")
 	{
-		// Health check
+
 		api.GET("/health", func(c *gin.Context) {
 			c.JSON(200, gin.H{
 				"status":  "ok",
-				"message": "API is running",
+				"message": "API đang hoạt động",
 			})
 		})
 
-		// Auth routes (public)
+		// Auth routes (công khai)
 		auth := api.Group("/auth")
 		{
 			auth.POST("/register", handlers.Register)
@@ -69,29 +68,29 @@ func main() {
 			auth.POST("/logout", handlers.Logout)
 		}
 
-		// Department routes - basic GET needs to be public for registration
+		// Department routes - GET cơ bản cần công khai cho đăng ký
 		api.GET("/departments", handlers.GetDepartments)
 
-		// Roles routes - needs to be public for registration
+		// Roles routes - cần công khai cho đăng ký
 		api.GET("/roles", handlers.GetRoles)
 
 		// SSE connection endpoint
 		api.GET("/sse/connect", handlers.SSEConnect)
 
-		// Protected routes
-		// Apply authentication middleware
+		// Routes được bảo vệ
+		// Áp dụng authentication middleware
 		api.Use(middleware.AuthMiddleware())
 
-		// Profile route - accessible to any authenticated user
+		// Profile route - truy cập được cho bất kỳ user đã xác thực
 		api.GET("/profile", handlers.GetUserProfile)
 
-		// User routes with role-based access
+		// User routes với kiểm soát truy cập theo vai trò
 		users := api.Group("/users")
 		{
 			users.GET("", middleware.RoleMiddleware("Admin", "PM"), handlers.GetUsers)
 			users.GET("/paginated", middleware.AdminOnly(), handlers.GetUsersPaginated)
 			users.GET("/:id", middleware.AdminOrPMOrBUL(), handlers.GetUserByID)
-			users.GET("/department/:department_id", middleware.RoleMiddleware("Admin", "BUL/Lead"), handlers.GetUsersInDepartment) // Admin always has access
+			users.GET("/department/:department_id", middleware.RoleMiddleware("Admin", "BUL/Lead"), handlers.GetUsersInDepartment) // Admin luôn có quyền truy cập
 			users.GET("/project/:project_id", middleware.RoleMiddleware("Admin", "PM"), handlers.GetUsersInProject)
 			users.GET("/role/:role", middleware.AdminOnly(), handlers.GetUsersByRole)
 			users.GET("/pm", middleware.AdminOnly(), handlers.GetPMUsers)
@@ -102,7 +101,7 @@ func main() {
 
 		}
 
-		// Department management routes with role-based access
+		// Department management routes với kiểm soát truy cập theo vai trò
 		departments := api.Group("/admin/departments")
 		{
 			departments.GET("", middleware.AdminOnly(), handlers.GetDepartmentsWithStats)
@@ -111,45 +110,45 @@ func main() {
 			departments.DELETE("/:id", middleware.AdminOnly(), handlers.DeleteDepartment)
 		}
 
-		// CV routes with role-based access
+		// CV routes với kiểm soát truy cập theo vai trò
 		cvs := api.Group("/cv")
 		{
-			// All authenticated users can view their own CV
+			// Tất cả user đã xác thực có thể xem CV của mình
 			cvs.GET("/me", handlers.GetUserCV)
 
 			cvs.POST("/parse-cv", handlers.ParseCVFromFile)
 
-			// All authenticated users can create or update their own CV
+			// Tất cả user đã xác thực có thể tạo hoặc cập nhật CV của mình
 			cvs.POST("", handlers.CreateOrUpdateCV)
 
-			// Admin can delete any user's CV by user ID
+			// Admin có thể xóa CV của bất kỳ user nào theo user ID
 			cvs.DELETE("/user/:user_id", middleware.AdminOnly(), handlers.DeleteCV)
 
-			// Admin can update any user's CV by user ID
+			// Admin có thể cập nhật CV của bất kỳ user nào theo user ID
 			cvs.PUT("/user/:user_id", middleware.AdminOnly(), handlers.AdminUpdateCV)
 
-			// BUL and PM can view any CV by user ID
+			// BUL và PM có thể xem bất kỳ CV nào theo user ID
 			cvs.GET("/user/:user_id", middleware.AdminOrPMOrBUL(), handlers.GetCVByUserID)
 		}
 
-		// CV Request routes with role-based access
+		// CV Request routes với kiểm soát truy cập theo vai trò
 		requests := api.Group("/requests")
 		{
-			// All authenticated users can view and create CV update requests
+			// Tất cả user đã xác thực có thể xem và tạo yêu cầu cập nhật CV
 			requests.GET("", handlers.GetCVRequests)
 			requests.GET("/sent", middleware.RoleMiddleware("BUL/Lead", "PM"), handlers.GetSentCVRequests)
 			requests.GET("/sent/pm", middleware.PMOnly(), handlers.GetSentCVRequestsPM)
 			requests.GET("/sent/bul", middleware.BULOnly(), handlers.GetSentCVRequestsBUL)
 			requests.POST("", handlers.CreateCVRequest)
 			requests.PUT("/:id/status", middleware.AdminOrPMOrBUL(), handlers.UpdateCVRequestStatus)
-			// Mark requests as read
+			// Đánh dấu các yêu cầu đã đọc
 			requests.PUT("/:id/read", handlers.MarkCVRequestAsRead)
 			requests.PUT("/mark-all-read", handlers.MarkAllCVRequestsAsRead)
-			// Admin-only route to get all CV requests across all users
+			// Route chỉ dành cho Admin để lấy tất cả CV requests của tất cả users
 			requests.GET("/admin/all", middleware.AdminOnly(), handlers.GetAllCVRequestsForAdmin)
 		}
 
-		// Project routes with role-based access
+		// Project routes với kiểm soát truy cập theo vai trò
 		projects := api.Group("/projects")
 		{
 			projects.GET("", middleware.RoleMiddleware("Admin", "PM"), handlers.GetProjects)
@@ -163,57 +162,57 @@ func main() {
 			projects.POST("/:id/members", middleware.RoleMiddleware("Admin", "PM"), handlers.AddProjectMember)
 			projects.DELETE("/:id/members/:userId", middleware.RoleMiddleware("Admin", "PM"), handlers.RemoveProjectMember)
 
-			// Admin-specific project routes
+			// Project routes đặc biệt cho Admin
 			adminProjects := projects.Group("/admin")
 			{
 				adminProjects.POST("", middleware.AdminOnly(), handlers.CreateProjectWithPM)
 			}
 		}
 
-		// Upload routes - accessible to all authenticated users
+		// Upload routes - truy cập được cho tất cả user đã xác thực
 		upload := api.Group("/upload")
 		{
-			// CV profile photo upload (optimized for CV photos, 3:4 ratio, cv-photos folder)
+			// Upload ảnh profile CV (tối ưu cho ảnh CV, tỉ lệ 3:4, thư mục cv-photos)
 			upload.POST("/cv-photo", handlers.UploadCVPhoto)
-			// PDF file upload for CV documents
+			// Upload file PDF cho tài liệu CV
 			upload.POST("/pdf", handlers.UploadPDF)
 		}
 
-		// AI service routes - accessible to all authenticated users
+		// AI service routes - truy cập được cho tất cả user đã xác thực
 		ai := api.Group("/ai")
 		{
-			// Parse CV from file path
+			// Parse CV từ đường dẫn file
 			ai.POST("/parse-cv", handlers.ParseCVFromFile)
 		}
 
-		// Employee routes - accessible to all authenticated users
+		// Employee routes - truy cập được cho tất cả user đã xác thực
 		employee := api.Group("/employee")
 		{
 			employee.GET("/notifications", handlers.GetCVRequests)
 		}
 
-		// General info routes - accessible to all authenticated users
+		// General info routes - truy cập được cho tất cả user đã xác thực
 		generalInfo := api.Group("/general-info")
 		{
-			// Get department general information
+			// Lấy thông tin chung của phòng ban
 			generalInfo.GET("/department", handlers.GetGeneralInfoOfDepartment)
-			// Get project management general information
+			// Lấy thông tin chung về quản lý dự án
 			generalInfo.GET("/project-management", handlers.GetGeneralInfoOfProjectManagement)
-			// Get admin dashboard statistics (Admin only)
+			// Lấy thống kê dashboard admin (chỉ Admin)
 			generalInfo.GET("/admin-dashboard-stats", middleware.AdminOnly(), handlers.GetAdminDashboardStats)
 		}
 	}
 
-	// Get port from environment or use default
+	// Lấy port từ môi trường hoặc sử dụng mặc định
 	port := os.Getenv("SERVER_PORT")
 	if port == "" {
 		port = "8080"
 	}
 
-	// Start server
+	// Khởi động server
 	serverAddr := fmt.Sprintf(":%s", port)
-	log.Printf("Server starting on port %s", port)
+	log.Printf("Server đang khởi động trên port %s", port)
 	if err := router.Run(serverAddr); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
+		log.Fatalf("Lỗi khởi động server: %v", err)
 	}
 }

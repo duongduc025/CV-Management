@@ -11,7 +11,7 @@ import (
 	"github.com/vdt/cv-management/internal/models"
 )
 
-// Helper function to convert string to *string for nullable fields
+// nullStringPtr chuyển đổi string thành *string cho các trường nullable
 func nullStringPtr(s string) *string {
 	if s == "" {
 		return nil
@@ -19,13 +19,12 @@ func nullStringPtr(s string) *string {
 	return &s
 }
 
-// Helper function to load related CV data (education, courses, skills)
+// loadCVRelatedData tải dữ liệu liên quan đến CV (học vấn, khóa học, kỹ năng)
 func loadCVRelatedData(c *gin.Context, cvDetailID string) ([]models.CVEducation, []models.CVCourse, []models.CVSkill, error) {
 	var education []models.CVEducation
 	var courses []models.CVCourse
 	var skills []models.CVSkill
 
-	// Load education data
 	eduRows, err := database.DB.Query(c,
 		`SELECT id, cv_id, organization, degree, major, graduation_year
 		FROM cv_education WHERE cv_id = $1 ORDER BY id`, cvDetailID)
@@ -43,7 +42,6 @@ func loadCVRelatedData(c *gin.Context, cvDetailID string) ([]models.CVEducation,
 		education = append(education, edu)
 	}
 
-	// Load courses data
 	courseRows, err := database.DB.Query(c,
 		`SELECT id, cv_id, course_name, organization, finish_date
 		FROM cv_courses WHERE cv_id = $1 ORDER BY id`, cvDetailID)
@@ -61,7 +59,6 @@ func loadCVRelatedData(c *gin.Context, cvDetailID string) ([]models.CVEducation,
 		courses = append(courses, course)
 	}
 
-	// Load skills data
 	skillRows, err := database.DB.Query(c,
 		`SELECT id, cv_id, skill_name, description
 		FROM cv_skills WHERE cv_id = $1 ORDER BY id`, cvDetailID)
@@ -82,7 +79,7 @@ func loadCVRelatedData(c *gin.Context, cvDetailID string) ([]models.CVEducation,
 	return education, courses, skills, nil
 }
 
-// GetUserCV returns the CV of the authenticated user
+// GetUserCV trả về CV của người dùng đã xác thực
 func GetUserCV(c *gin.Context) {
 	userID, exists := c.Get("userID")
 	if !exists {
@@ -93,9 +90,9 @@ func GetUserCV(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("GetUserCV: Fetching CV for user %v\n", userID)
+	fmt.Printf("GetUserCV: Lấy CV cho user %v\n", userID)
 
-	// Query to get CV with details by user ID
+	// Query để lấy CV với chi tiết theo user ID
 	var cv models.CV
 	var details models.CVDetail
 	var updaterName, updaterEmployeeCode sql.NullString
@@ -117,7 +114,7 @@ func GetUserCV(c *gin.Context) {
 		&updaterName, &updaterEmployeeCode)
 
 	if err != nil {
-		fmt.Printf("GetUserCV: Error fetching CV: %v\n", err)
+		fmt.Printf("GetUserCV: Lỗi khi lấy CV: %v\n", err)
 		c.JSON(http.StatusNotFound, gin.H{
 			"status":  "error",
 			"message": "CV not found for this user",
@@ -125,13 +122,13 @@ func GetUserCV(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("GetUserCV: Successfully fetched CV %s for user %s\n", cv.ID, cv.UserID)
+	fmt.Printf("GetUserCV: Lấy CV thành công %s cho user %s\n", cv.ID, cv.UserID)
 
-	// Load related data (education, courses, skills)
+	// Tải dữ liệu liên quan (học vấn, khóa học, kỹ năng)
 	if details.ID != "" {
 		education, courses, skills, err := loadCVRelatedData(c, details.ID)
 		if err != nil {
-			fmt.Printf("GetUserCV: Error loading related data: %v\n", err)
+			fmt.Printf("GetUserCV: Lỗi khi tải dữ liệu liên quan: %v\n", err)
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"status":  "error",
 				"message": "Error loading CV related data",
@@ -143,7 +140,7 @@ func GetUserCV(c *gin.Context) {
 		details.Skills = skills
 	}
 
-	// Create response with proper null handling
+	// Tạo response với xử lý null đúng cách
 	response := map[string]interface{}{
 		"id":      cv.ID,
 		"user_id": cv.UserID,
@@ -151,7 +148,7 @@ func GetUserCV(c *gin.Context) {
 		"details": details,
 	}
 
-	// Handle nullable fields
+	// Xử lý các trường nullable
 	if cv.LastUpdatedBy.Valid {
 		response["last_updated_by"] = cv.LastUpdatedBy.String
 	}
@@ -171,7 +168,7 @@ func GetUserCV(c *gin.Context) {
 	})
 }
 
-// GetCVByUserID returns a specific CV by user ID
+// GetCVByUserID trả về CV của người dùng theo ID
 func GetCVByUserID(c *gin.Context) {
 	userID := c.Param("user_id")
 	if userID == "" {
@@ -182,9 +179,9 @@ func GetCVByUserID(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("GetCVByUserID: Fetching CV for user ID %s\n", userID)
+	fmt.Printf("GetCVByUserID: Lấy CV cho user ID %s\n", userID)
 
-	// Query to get CV with details by user ID
+	// Query để lấy CV với chi tiết theo user ID
 	var cv models.CV
 	var details models.CVDetail
 	var updaterName, updaterEmployeeCode sql.NullString
@@ -206,7 +203,7 @@ func GetCVByUserID(c *gin.Context) {
 		&updaterName, &updaterEmployeeCode)
 
 	if err != nil {
-		fmt.Printf("GetCVByUserID: Error fetching CV: %v\n", err)
+		fmt.Printf("GetCVByUserID: Lỗi khi lấy CV: %v\n", err)
 		c.JSON(http.StatusNotFound, gin.H{
 			"status":  "error",
 			"message": "CV not found for this user",
@@ -214,13 +211,13 @@ func GetCVByUserID(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("GetCVByUserID: Successfully fetched CV %s for user %s with status: %s\n", cv.ID, cv.UserID, cv.Status)
+	fmt.Printf("GetCVByUserID: Lấy CV thành công %s cho user %s với trạng thái: %s\n", cv.ID, cv.UserID, cv.Status)
 
-	// Load related data (education, courses, skills)
+	// Tải dữ liệu liên quan (học vấn, khóa học, kỹ năng)
 	if details.ID != "" {
 		education, courses, skills, err := loadCVRelatedData(c, details.ID)
 		if err != nil {
-			fmt.Printf("GetCVByUserID: Error loading related data: %v\n", err)
+			fmt.Printf("GetCVByUserID: Lỗi khi tải dữ liệu liên quan: %v\n", err)
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"status":  "error",
 				"message": "Error loading CV related data",
@@ -232,7 +229,7 @@ func GetCVByUserID(c *gin.Context) {
 		details.Skills = skills
 	}
 
-	// Create response with proper null handling
+	// Tạo response với xử lý null đúng cách
 	response := map[string]interface{}{
 		"id":      cv.ID,
 		"user_id": cv.UserID,
@@ -240,7 +237,7 @@ func GetCVByUserID(c *gin.Context) {
 		"details": details,
 	}
 
-	// Handle nullable fields
+	// Xử lý các trường nullable
 	if cv.LastUpdatedBy.Valid {
 		response["last_updated_by"] = cv.LastUpdatedBy.String
 	}
@@ -260,9 +257,9 @@ func GetCVByUserID(c *gin.Context) {
 	})
 }
 
-// CreateOrUpdateCV creates a new CV or updates an existing CV for the authenticated user
+// CreateOrUpdateCV tạo CV mới hoặc cập nhật CV hiện có cho người dùng đã xác thực
 func CreateOrUpdateCV(c *gin.Context) {
-	// Get user ID from context (set by auth middleware)
+	// Lấy user ID từ context (được set bởi auth middleware)
 	userID, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -272,7 +269,7 @@ func CreateOrUpdateCV(c *gin.Context) {
 		return
 	}
 
-	// Define the request structure for CV creation (all fields optional)
+	// Định nghĩa cấu trúc request cho việc tạo CV (tất cả trường đều tùy chọn)
 	var request struct {
 		FullName     string                      `json:"full_name"`
 		JobTitle     string                      `json:"job_title"`
@@ -289,7 +286,7 @@ func CreateOrUpdateCV(c *gin.Context) {
 		Skills       []models.CVSkillRequest     `json:"skills"`
 	}
 
-	// Bind JSON request to struct
+	// Bind JSON request vào struct
 	if err := c.ShouldBindJSON(&request); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  "error",
@@ -298,9 +295,9 @@ func CreateOrUpdateCV(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("CreateOrUpdateCV: Processing CV for user %v\n", userID)
+	fmt.Printf("CreateOrUpdateCV: Xử lý CV cho user %v\n", userID)
 
-	// Check if user already has a CV (since user_id is unique in cv table)
+	// Kiểm tra user đã có CV chưa (vì user_id là unique trong bảng cv)
 	var existingCVID string
 	var existingCVDetailID *string
 	var currentStatus string
@@ -313,31 +310,31 @@ func CreateOrUpdateCV(c *gin.Context) {
 		WHERE cv.user_id = $1`, userID).Scan(&existingCVID, &existingCVDetailID, &currentStatus)
 
 	if err == nil {
-		// CV already exists, this will be an update
+		// CV đã tồn tại, đây sẽ là update
 		isUpdate = true
-		fmt.Printf("CreateOrUpdateCV: Updating existing CV %s for user %v with current status: %s\n", existingCVID, userID, currentStatus)
+		fmt.Printf("CreateOrUpdateCV: Cập nhật CV hiện có %s cho user %v với trạng thái hiện tại: %s\n", existingCVID, userID, currentStatus)
 		if existingCVDetailID != nil {
-			fmt.Printf("CreateOrUpdateCV: Found existing CV details %s\n", *existingCVDetailID)
+			fmt.Printf("CreateOrUpdateCV: Tìm thấy chi tiết CV hiện có %s\n", *existingCVDetailID)
 		} else {
-			fmt.Printf("CreateOrUpdateCV: No CV details found, will create new details\n")
+			fmt.Printf("CreateOrUpdateCV: Không tìm thấy chi tiết CV, sẽ tạo chi tiết mới\n")
 		}
 	} else {
-		fmt.Printf("CreateOrUpdateCV: Creating new CV for user %v (error: %v)\n", userID, err)
-		currentStatus = "" // No existing status for new CV
+		fmt.Printf("CreateOrUpdateCV: Tạo CV mới cho user %v (lỗi: %v)\n", userID, err)
+		currentStatus = "" // Không có trạng thái hiện có cho CV mới
 	}
 
-	// Check if all required fields are filled to determine status
+	// Kiểm tra tất cả trường bắt buộc có được điền để xác định trạng thái
 	var newStatus string
 	var responseMessage string
 
-	// Check if all required fields are filled
+	// Kiểm tra tất cả trường bắt buộc có được điền
 	hasRequiredPersonalInfo := request.FullName != "" && request.JobTitle != "" && request.Summary != "" &&
 		request.Birthday != "" && request.Gender != "" && request.Email != "" &&
 		request.Phone != "" && request.Address != ""
 
-	// Check if education has at least one entry with organization
+	// Kiểm tra học vấn có ít nhất một mục với tổ chức
 	hasEducation := false
-	if request.Education != nil && len(request.Education) > 0 {
+	if len(request.Education) > 0 {
 		for _, edu := range request.Education {
 			if edu.Organization != "" {
 				hasEducation = true
@@ -346,9 +343,9 @@ func CreateOrUpdateCV(c *gin.Context) {
 		}
 	}
 
-	// Check if skills has at least one entry with skill name
+	// Kiểm tra kỹ năng có ít nhất một mục với tên kỹ năng
 	hasSkills := false
-	if request.Skills != nil && len(request.Skills) > 0 {
+	if len(request.Skills) > 0 {
 		for _, skill := range request.Skills {
 			if skill.SkillName != "" {
 				hasSkills = true
@@ -357,7 +354,7 @@ func CreateOrUpdateCV(c *gin.Context) {
 		}
 	}
 
-	// Determine status based on completeness
+	// Xác định trạng thái dựa trên tính đầy đủ
 	if hasRequiredPersonalInfo && hasEducation && hasSkills {
 		newStatus = "Đã cập nhật"
 		if isUpdate {
@@ -370,12 +367,12 @@ func CreateOrUpdateCV(c *gin.Context) {
 		responseMessage = "Bạn cần cập nhật thêm các trường yêu cầu"
 	}
 
-	fmt.Printf("CreateOrUpdateCV: New status will be: %s\n", newStatus)
+	fmt.Printf("CreateOrUpdateCV: Trạng thái mới sẽ là: %s\n", newStatus)
 
-	// Start a transaction
+	// Bắt đầu transaction
 	tx, err := database.DB.Begin(c)
 	if err != nil {
-		fmt.Printf("CreateOrUpdateCV: Error starting transaction: %v\n", err)
+		fmt.Printf("CreateOrUpdateCV: Lỗi khi bắt đầu transaction: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
 			"message": "Error starting database transaction",
@@ -388,7 +385,7 @@ func CreateOrUpdateCV(c *gin.Context) {
 	var cvDetailID string
 
 	if isUpdate {
-		// Update existing CV record
+		// Cập nhật bản ghi CV hiện có
 		cvID = existingCVID
 		err = tx.QueryRow(c,
 			`UPDATE cv SET last_updated_by = $1, last_updated_at = NOW(), status = $2
@@ -396,7 +393,7 @@ func CreateOrUpdateCV(c *gin.Context) {
 			userID, newStatus, existingCVID).Scan(&cvID)
 
 		if err != nil {
-			fmt.Printf("CreateOrUpdateCV: Error updating CV record: %v\n", err)
+			fmt.Printf("CreateOrUpdateCV: Lỗi khi cập nhật bản ghi CV: %v\n", err)
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"status":  "error",
 				"message": "Error updating CV record",
@@ -404,9 +401,9 @@ func CreateOrUpdateCV(c *gin.Context) {
 			return
 		}
 
-		// Handle CV details - update if exists, create if doesn't
+		// Xử lý chi tiết CV - cập nhật nếu tồn tại, tạo nếu không
 		if existingCVDetailID != nil {
-			// Update existing CV details record
+			// Cập nhật bản ghi chi tiết CV hiện có
 			cvDetailID = *existingCVDetailID
 			var birthday *time.Time
 			if request.Birthday != "" {
@@ -424,7 +421,7 @@ func CreateOrUpdateCV(c *gin.Context) {
 				nullStringPtr(request.CVPath), nullStringPtr(request.PortraitPath), *existingCVDetailID).Scan(&cvDetailID)
 
 			if err != nil {
-				fmt.Printf("CreateOrUpdateCV: Error updating CV details record: %v\n", err)
+				fmt.Printf("CreateOrUpdateCV: Lỗi khi cập nhật bản ghi chi tiết CV: %v\n", err)
 				c.JSON(http.StatusInternalServerError, gin.H{
 					"status":  "error",
 					"message": "Error updating CV details record",
@@ -432,7 +429,7 @@ func CreateOrUpdateCV(c *gin.Context) {
 				return
 			}
 		} else {
-			// Create new CV details record for existing CV
+			// Tạo bản ghi chi tiết CV mới cho CV hiện có
 			var birthday *time.Time
 			if request.Birthday != "" {
 				if parsedDate, err := time.Parse("2006-01-02", request.Birthday); err == nil {
@@ -450,7 +447,7 @@ func CreateOrUpdateCV(c *gin.Context) {
 				nullStringPtr(request.CVPath), nullStringPtr(request.PortraitPath)).Scan(&cvDetailID)
 
 			if err != nil {
-				fmt.Printf("CreateOrUpdateCV: Error creating CV details record for existing CV: %v\n", err)
+				fmt.Printf("CreateOrUpdateCV: Lỗi khi tạo bản ghi chi tiết CV cho CV hiện có: %v\n", err)
 				c.JSON(http.StatusInternalServerError, gin.H{
 					"status":  "error",
 					"message": "Error creating CV details record",
@@ -459,7 +456,7 @@ func CreateOrUpdateCV(c *gin.Context) {
 			}
 		}
 	} else {
-		// Insert new CV record
+		// Chèn bản ghi CV mới
 		err = tx.QueryRow(c,
 			`INSERT INTO cv (id, user_id, last_updated_by, last_updated_at, status)
 			VALUES (uuid_generate_v4(), $1, $1, NOW(), $2)
@@ -467,7 +464,7 @@ func CreateOrUpdateCV(c *gin.Context) {
 			userID, newStatus).Scan(&cvID)
 
 		if err != nil {
-			fmt.Printf("CreateOrUpdateCV: Error creating CV record: %v\n", err)
+			fmt.Printf("CreateOrUpdateCV: Lỗi khi tạo bản ghi CV: %v\n", err)
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"status":  "error",
 				"message": "Error creating CV record",
@@ -475,7 +472,7 @@ func CreateOrUpdateCV(c *gin.Context) {
 			return
 		}
 
-		// Insert CV details record
+		// Chèn bản ghi chi tiết CV
 		var birthday *time.Time
 		if request.Birthday != "" {
 			if parsedDate, err := time.Parse("2006-01-02", request.Birthday); err == nil {
@@ -493,7 +490,7 @@ func CreateOrUpdateCV(c *gin.Context) {
 			nullStringPtr(request.CVPath), nullStringPtr(request.PortraitPath)).Scan(&cvDetailID)
 
 		if err != nil {
-			fmt.Printf("CreateOrUpdateCV: Error creating CV details record: %v\n", err)
+			fmt.Printf("CreateOrUpdateCV: Lỗi khi tạo bản ghi chi tiết CV: %v\n", err)
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"status":  "error",
 				"message": "Error creating CV details record",
@@ -502,12 +499,12 @@ func CreateOrUpdateCV(c *gin.Context) {
 		}
 	}
 
-	// Handle Education data - only update if data is provided
+	// Xử lý dữ liệu học vấn - chỉ cập nhật nếu có dữ liệu
 	if request.Education != nil && len(request.Education) > 0 {
-		// Delete existing education records for this CV detail
+		// Xóa các bản ghi học vấn hiện có cho chi tiết CV này
 		_, err = tx.Exec(c, "DELETE FROM cv_education WHERE cv_id = $1", cvDetailID)
 		if err != nil {
-			fmt.Printf("CreateOrUpdateCV: Error deleting existing education records: %v\n", err)
+			fmt.Printf("CreateOrUpdateCV: Lỗi khi xóa các bản ghi học vấn hiện có: %v\n", err)
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"status":  "error",
 				"message": "Error updating education data",
@@ -515,16 +512,16 @@ func CreateOrUpdateCV(c *gin.Context) {
 			return
 		}
 
-		// Insert new education records
+		// Chèn các bản ghi học vấn mới
 		for _, edu := range request.Education {
-			// Only insert if organization is not empty (required field)
+			// Chỉ chèn nếu tổ chức không rỗng (trường bắt buộc)
 			if edu.Organization != "" {
 				_, err = tx.Exec(c,
 					`INSERT INTO cv_education (id, cv_id, organization, degree, major, graduation_year)
 					VALUES (uuid_generate_v4(), $1, $2, $3, $4, $5)`,
 					cvDetailID, edu.Organization, edu.Degree, edu.Major, edu.GraduationYear)
 				if err != nil {
-					fmt.Printf("CreateOrUpdateCV: Error inserting education record: %v\n", err)
+					fmt.Printf("CreateOrUpdateCV: Lỗi khi chèn bản ghi học vấn: %v\n", err)
 					c.JSON(http.StatusInternalServerError, gin.H{
 						"status":  "error",
 						"message": "Error saving education data",
@@ -535,12 +532,12 @@ func CreateOrUpdateCV(c *gin.Context) {
 		}
 	}
 
-	// Handle Courses data - only update if data is provided
+	// Xử lý dữ liệu khóa học - chỉ cập nhật nếu có dữ liệu
 	if request.Courses != nil && len(request.Courses) > 0 {
-		// Delete existing course records for this CV detail
+		// Xóa các bản ghi khóa học hiện có cho chi tiết CV này
 		_, err = tx.Exec(c, "DELETE FROM cv_courses WHERE cv_id = $1", cvDetailID)
 		if err != nil {
-			fmt.Printf("CreateOrUpdateCV: Error deleting existing course records: %v\n", err)
+			fmt.Printf("CreateOrUpdateCV: Lỗi khi xóa các bản ghi khóa học hiện có: %v\n", err)
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"status":  "error",
 				"message": "Error updating course data",
@@ -548,9 +545,9 @@ func CreateOrUpdateCV(c *gin.Context) {
 			return
 		}
 
-		// Insert new course records
+		// Chèn các bản ghi khóa học mới
 		for _, course := range request.Courses {
-			// Only insert if course name is not empty (required field)
+			// Chỉ chèn nếu tên khóa học không rỗng (trường bắt buộc)
 			if course.CourseName != "" {
 				var finishDate *time.Time
 				if course.FinishDate != "" {
@@ -564,7 +561,7 @@ func CreateOrUpdateCV(c *gin.Context) {
 					VALUES (uuid_generate_v4(), $1, $2, $3, $4)`,
 					cvDetailID, course.CourseName, course.Organization, finishDate)
 				if err != nil {
-					fmt.Printf("CreateOrUpdateCV: Error inserting course record: %v\n", err)
+					fmt.Printf("CreateOrUpdateCV: Lỗi khi chèn bản ghi khóa học: %v\n", err)
 					c.JSON(http.StatusInternalServerError, gin.H{
 						"status":  "error",
 						"message": "Error saving course data",
@@ -575,12 +572,12 @@ func CreateOrUpdateCV(c *gin.Context) {
 		}
 	}
 
-	// Handle Skills data - only update if data is provided
+	// Xử lý dữ liệu kỹ năng - chỉ cập nhật nếu có dữ liệu
 	if request.Skills != nil && len(request.Skills) > 0 {
-		// Delete existing skill records for this CV detail
+		// Xóa các bản ghi kỹ năng hiện có cho chi tiết CV này
 		_, err = tx.Exec(c, "DELETE FROM cv_skills WHERE cv_id = $1", cvDetailID)
 		if err != nil {
-			fmt.Printf("CreateOrUpdateCV: Error deleting existing skill records: %v\n", err)
+			fmt.Printf("CreateOrUpdateCV: Lỗi khi xóa các bản ghi kỹ năng hiện có: %v\n", err)
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"status":  "error",
 				"message": "Error updating skill data",
@@ -588,16 +585,16 @@ func CreateOrUpdateCV(c *gin.Context) {
 			return
 		}
 
-		// Insert new skill records
+		// Chèn các bản ghi kỹ năng mới
 		for _, skill := range request.Skills {
-			// Only insert if skill name is not empty (required field)
+			// Chỉ chèn nếu tên kỹ năng không rỗng (trường bắt buộc)
 			if skill.SkillName != "" {
 				_, err = tx.Exec(c,
 					`INSERT INTO cv_skills (id, cv_id, skill_name, description)
 					VALUES (uuid_generate_v4(), $1, $2, $3)`,
 					cvDetailID, skill.SkillName, skill.Description)
 				if err != nil {
-					fmt.Printf("CreateOrUpdateCV: Error inserting skill record: %v\n", err)
+					fmt.Printf("CreateOrUpdateCV: Lỗi khi chèn bản ghi kỹ năng: %v\n", err)
 					c.JSON(http.StatusInternalServerError, gin.H{
 						"status":  "error",
 						"message": "Error saving skill data",
@@ -608,9 +605,9 @@ func CreateOrUpdateCV(c *gin.Context) {
 		}
 	}
 
-	// Commit the transaction
+	// Commit transaction
 	if err = tx.Commit(c); err != nil {
-		fmt.Printf("CreateOrUpdateCV: Error committing transaction: %v\n", err)
+		fmt.Printf("CreateOrUpdateCV: Lỗi khi commit transaction: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
 			"message": "Error saving CV data",
@@ -618,9 +615,9 @@ func CreateOrUpdateCV(c *gin.Context) {
 		return
 	}
 
-	// After successful CV update, mark any pending update requests as processed
+	// Sau khi cập nhật CV thành công, đánh dấu các yêu cầu cập nhật đang chờ là đã xử lý
 	if isUpdate {
-		fmt.Printf("CreateOrUpdateCV: Marking pending CV update requests as processed for CV %s\n", cvID)
+		fmt.Printf("CreateOrUpdateCV: Đánh dấu các yêu cầu cập nhật CV đang chờ là đã xử lý cho CV %s\n", cvID)
 		result, err := database.DB.Exec(c,
 			`UPDATE cv_update_requests
 			SET status = 'Đã xử lý'
@@ -628,15 +625,15 @@ func CreateOrUpdateCV(c *gin.Context) {
 			cvID)
 
 		if err != nil {
-			fmt.Printf("CreateOrUpdateCV: Error updating CV request status: %v\n", err)
-			// Don't fail the entire operation, just log the error
+			fmt.Printf("CreateOrUpdateCV: Lỗi cập nhật trạng thái yêu cầu CV: %v\n", err)
+			// Không làm thất bại toàn bộ operation, chỉ log lỗi
 		} else {
 			rowsAffected := result.RowsAffected()
-			fmt.Printf("CreateOrUpdateCV: Successfully marked %d CV update requests as processed\n", rowsAffected)
+			fmt.Printf("CreateOrUpdateCV: Đánh dấu thành công %d yêu cầu cập nhật CV là đã xử lý\n", rowsAffected)
 		}
 	}
 
-	// Create response CV object
+	// Tạo đối tượng response CV
 	cv := models.CV{
 		ID:     cvID,
 		UserID: userID.(string),
@@ -648,7 +645,7 @@ func CreateOrUpdateCV(c *gin.Context) {
 		Status:        newStatus,
 	}
 
-	// Create CV details object
+	// Tạo đối tượng chi tiết CV
 	var birthday *time.Time
 	if request.Birthday != "" {
 		if parsedDate, err := time.Parse("2006-01-02", request.Birthday); err == nil {
@@ -672,11 +669,11 @@ func CreateOrUpdateCV(c *gin.Context) {
 		CreatedAt:    time.Now(),
 	}
 
-	// Load related data (education, courses, skills) using helper function
+	// Tải dữ liệu liên quan (học vấn, khóa học, kỹ năng) sử dụng helper function
 	education, courses, skills, err := loadCVRelatedData(c, cvDetailID)
 	if err != nil {
-		fmt.Printf("CreateOrUpdateCV: Error loading related data: %v\n", err)
-		// Don't fail the entire operation, just log the error and continue with empty arrays
+		fmt.Printf("CreateOrUpdateCV: Lỗi tải dữ liệu liên quan: %v\n", err)
+		// Không làm thất bại toàn bộ operation, chỉ log lỗi và tiếp tục với mảng rỗng
 		details.Education = []models.CVEducation{}
 		details.Courses = []models.CVCourse{}
 		details.Skills = []models.CVSkill{}
@@ -686,7 +683,7 @@ func CreateOrUpdateCV(c *gin.Context) {
 		details.Skills = skills
 	}
 
-	// Create response with both CV and details
+	// Tạo response với cả CV và chi tiết
 	response := map[string]interface{}{
 		"cv":      cv,
 		"details": details,
@@ -699,8 +696,8 @@ func CreateOrUpdateCV(c *gin.Context) {
 		statusCode = http.StatusCreated
 	}
 
-	fmt.Printf("CreateOrUpdateCV: Successfully %s CV with ID %s for user %v, status: %s\n",
-		map[bool]string{true: "updated", false: "created"}[isUpdate], cvID, userID, newStatus)
+	fmt.Printf("CreateOrUpdateCV: %s CV thành công với ID %s cho user %v, trạng thái: %s\n",
+		map[bool]string{true: "Cập nhật", false: "Tạo"}[isUpdate], cvID, userID, newStatus)
 
 	c.JSON(statusCode, gin.H{
 		"status":  "success",
@@ -709,9 +706,9 @@ func CreateOrUpdateCV(c *gin.Context) {
 	})
 }
 
-// AdminUpdateCV allows admin to update any user's CV by providing user_id parameter
+// AdminUpdateCV cho phép admin cập nhật CV của bất kỳ người dùng nào bằng cách cung cấp tham số user_id
 func AdminUpdateCV(c *gin.Context) {
-	// Get target user ID from URL parameter
+	// Lấy target user ID từ URL parameter
 	targetUserID := c.Param("user_id")
 	if targetUserID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -721,7 +718,7 @@ func AdminUpdateCV(c *gin.Context) {
 		return
 	}
 
-	// Get current admin user ID from context (set by auth middleware) for logging
+	// Lấy admin user ID hiện tại từ context (được set bởi auth middleware) để logging
 	adminUserID, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -731,7 +728,7 @@ func AdminUpdateCV(c *gin.Context) {
 		return
 	}
 
-	// Define the request structure for CV creation (all fields optional) - same as CreateOrUpdateCV
+	// Định nghĩa cấu trúc request cho việc tạo CV (tất cả trường đều tùy chọn) - giống như CreateOrUpdateCV
 	var request struct {
 		FullName     string                      `json:"full_name"`
 		JobTitle     string                      `json:"job_title"`
@@ -749,7 +746,7 @@ func AdminUpdateCV(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&request); err != nil {
-		fmt.Printf("AdminUpdateCV: Error parsing request body: %v\n", err)
+		fmt.Printf("AdminUpdateCV: Lỗi khi phân tích body request: %v\n", err)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  "error",
 			"message": "Invalid request format",
@@ -757,12 +754,12 @@ func AdminUpdateCV(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("AdminUpdateCV: Admin %s updating CV for user %s\n", adminUserID, targetUserID)
+	fmt.Printf("AdminUpdateCV: Admin %s cập nhật CV cho user %s\n", adminUserID, targetUserID)
 
-	// Start transaction
+	// Bắt đầu transaction
 	tx, err := database.DB.Begin(c)
 	if err != nil {
-		fmt.Printf("AdminUpdateCV: Error starting transaction: %v\n", err)
+		fmt.Printf("AdminUpdateCV: Lỗi khi bắt đầu transaction: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
 			"message": "Database transaction error",
@@ -771,7 +768,7 @@ func AdminUpdateCV(c *gin.Context) {
 	}
 	defer tx.Rollback(c)
 
-	// Check if CV exists for the target user
+	// Kiểm tra CV có tồn tại cho target user không
 	var existingCVID *string
 	var existingCVDetailID *string
 	var isUpdate bool
@@ -779,11 +776,11 @@ func AdminUpdateCV(c *gin.Context) {
 	err = tx.QueryRow(c, "SELECT id FROM cv WHERE user_id = $1", targetUserID).Scan(&existingCVID)
 	if err != nil {
 		if err.Error() == "no rows in result set" {
-			// CV doesn't exist, we'll create a new one
+			// CV không tồn tại, chúng ta sẽ tạo mới
 			isUpdate = false
-			fmt.Printf("AdminUpdateCV: No existing CV found for user %s, creating new CV\n", targetUserID)
+			fmt.Printf("AdminUpdateCV: Không tìm thấy CV cho user %s, tạo CV mới\n", targetUserID)
 		} else {
-			fmt.Printf("AdminUpdateCV: Error checking existing CV: %v\n", err)
+			fmt.Printf("AdminUpdateCV: Lỗi kiểm tra CV hiện có: %v\n", err)
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"status":  "error",
 				"message": "Error checking existing CV",
@@ -792,12 +789,12 @@ func AdminUpdateCV(c *gin.Context) {
 		}
 	} else {
 		isUpdate = true
-		fmt.Printf("AdminUpdateCV: Found existing CV %s for user %s\n", *existingCVID, targetUserID)
+		fmt.Printf("AdminUpdateCV: Tìm thấy CV hiện có %s cho user %s\n", *existingCVID, targetUserID)
 
-		// Get existing CV detail ID
+		// Lấy existing CV detail ID
 		err = tx.QueryRow(c, "SELECT id FROM cv_details WHERE cv_id = $1", *existingCVID).Scan(&existingCVDetailID)
 		if err != nil && err.Error() != "no rows in result set" {
-			fmt.Printf("AdminUpdateCV: Error getting CV detail ID: %v\n", err)
+			fmt.Printf("AdminUpdateCV: Lỗi khi lấy CV detail ID: %v\n", err)
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"status":  "error",
 				"message": "Error getting CV details",
@@ -806,12 +803,12 @@ func AdminUpdateCV(c *gin.Context) {
 		}
 	}
 
-	// Parse birthday if provided
+	// Parse birthday nếu được cung cấp
 	var birthday *time.Time
 	if request.Birthday != "" {
 		parsedBirthday, err := time.Parse("2006-01-02", request.Birthday)
 		if err != nil {
-			fmt.Printf("AdminUpdateCV: Error parsing birthday: %v\n", err)
+			fmt.Printf("AdminUpdateCV: Lỗi khi phân tích ngày sinh: %v\n", err)
 			c.JSON(http.StatusBadRequest, gin.H{
 				"status":  "error",
 				"message": "Invalid birthday format. Use YYYY-MM-DD",
@@ -825,22 +822,22 @@ func AdminUpdateCV(c *gin.Context) {
 	var cvDetailID string
 
 	if isUpdate {
-		// Update existing CV
+		// Cập nhật CV hiện có
 		cvID = *existingCVID
 
-		// Determine CV status based on required fields
+		// Xác định trạng thái CV dựa trên các trường bắt buộc
 		status := "Đã cập nhật"
 		if request.FullName == "" || request.JobTitle == "" || request.Summary == "" {
 			status = "Chưa cập nhật"
 		}
 
-		// Update CV record with admin as last_updated_by
+		// Cập nhật bản ghi CV với admin là last_updated_by
 		err = tx.QueryRow(c,
 			`UPDATE cv SET last_updated_by = $1, last_updated_at = NOW(), status = $2 WHERE id = $3 RETURNING id`,
 			adminUserID, status, cvID).Scan(&cvID)
 
 		if err != nil {
-			fmt.Printf("AdminUpdateCV: Error updating CV record: %v\n", err)
+			fmt.Printf("AdminUpdateCV: Lỗi khi cập nhật bản ghi CV: %v\n", err)
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"status":  "error",
 				"message": "Error updating CV record",
@@ -849,7 +846,7 @@ func AdminUpdateCV(c *gin.Context) {
 		}
 
 		if existingCVDetailID != nil {
-			// Update existing CV details
+			// Cập nhật chi tiết CV hiện có
 			err = tx.QueryRow(c,
 				`UPDATE cv_details SET full_name = $1, job_title = $2, summary = $3, birthday = $4, gender = $5, email = $6, phone = $7, address = $8, cvpath = $9, portraitpath = $10
 				WHERE id = $11 RETURNING id`,
@@ -859,7 +856,7 @@ func AdminUpdateCV(c *gin.Context) {
 				nullStringPtr(request.CVPath), nullStringPtr(request.PortraitPath), *existingCVDetailID).Scan(&cvDetailID)
 
 			if err != nil {
-				fmt.Printf("AdminUpdateCV: Error updating CV details record: %v\n", err)
+				fmt.Printf("AdminUpdateCV: Lỗi khi cập nhật bản ghi chi tiết CV: %v\n", err)
 				c.JSON(http.StatusInternalServerError, gin.H{
 					"status":  "error",
 					"message": "Error updating CV details record",
@@ -867,7 +864,7 @@ func AdminUpdateCV(c *gin.Context) {
 				return
 			}
 		} else {
-			// Create new CV details for existing CV
+			// Tạo chi tiết CV mới cho CV hiện có
 			err = tx.QueryRow(c,
 				`INSERT INTO cv_details (cv_id, full_name, job_title, summary, birthday, gender, email, phone, address, cvpath, portraitpath)
 				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
@@ -877,7 +874,7 @@ func AdminUpdateCV(c *gin.Context) {
 				nullStringPtr(request.CVPath), nullStringPtr(request.PortraitPath)).Scan(&cvDetailID)
 
 			if err != nil {
-				fmt.Printf("AdminUpdateCV: Error creating CV details record: %v\n", err)
+				fmt.Printf("AdminUpdateCV: Lỗi khi tạo bản ghi chi tiết CV cho CV hiện có: %v\n", err)
 				c.JSON(http.StatusInternalServerError, gin.H{
 					"status":  "error",
 					"message": "Error creating CV details record",
@@ -886,20 +883,20 @@ func AdminUpdateCV(c *gin.Context) {
 			}
 		}
 	} else {
-		// Create new CV
-		// Determine CV status based on required fields
+		// Tạo CV mới
+		// Xác định trạng thái CV dựa trên các trường bắt buộc
 		status := "Đã cập nhật"
 		if request.FullName == "" || request.JobTitle == "" || request.Summary == "" {
 			status = "Chưa cập nhật"
 		}
 
-		// Create CV record with admin as last_updated_by
+		// Tạo bản ghi CV với admin là last_updated_by
 		err = tx.QueryRow(c,
 			`INSERT INTO cv (user_id, last_updated_by, last_updated_at, status) VALUES ($1, $2, NOW(), $3) RETURNING id`,
 			targetUserID, adminUserID, status).Scan(&cvID)
 
 		if err != nil {
-			fmt.Printf("AdminUpdateCV: Error creating CV record: %v\n", err)
+			fmt.Printf("AdminUpdateCV: Lỗi khi tạo bản ghi CV: %v\n", err)
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"status":  "error",
 				"message": "Error creating CV record",
@@ -907,7 +904,7 @@ func AdminUpdateCV(c *gin.Context) {
 			return
 		}
 
-		// Create CV details record
+		// Tạo bản ghi chi tiết CV
 		err = tx.QueryRow(c,
 			`INSERT INTO cv_details (cv_id, full_name, job_title, summary, birthday, gender, email, phone, address, cvpath, portraitpath)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
@@ -917,7 +914,7 @@ func AdminUpdateCV(c *gin.Context) {
 			nullStringPtr(request.CVPath), nullStringPtr(request.PortraitPath)).Scan(&cvDetailID)
 
 		if err != nil {
-			fmt.Printf("AdminUpdateCV: Error creating CV details record: %v\n", err)
+			fmt.Printf("AdminUpdateCV: Lỗi khi tạo bản ghi chi tiết CV: %v\n", err)
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"status":  "error",
 				"message": "Error creating CV details record",
@@ -926,10 +923,10 @@ func AdminUpdateCV(c *gin.Context) {
 		}
 	}
 
-	// Delete existing education, courses, and skills for this CV
+	// Xóa học vấn, khóa học và kỹ năng hiện có cho CV này
 	_, err = tx.Exec(c, "DELETE FROM cv_education WHERE cv_id = $1", cvDetailID)
 	if err != nil {
-		fmt.Printf("AdminUpdateCV: Error deleting existing education: %v\n", err)
+		fmt.Printf("AdminUpdateCV: Lỗi khi xóa học vấn hiện có: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
 			"message": "Error updating education records",
@@ -939,7 +936,7 @@ func AdminUpdateCV(c *gin.Context) {
 
 	_, err = tx.Exec(c, "DELETE FROM cv_courses WHERE cv_id = $1", cvDetailID)
 	if err != nil {
-		fmt.Printf("AdminUpdateCV: Error deleting existing courses: %v\n", err)
+		fmt.Printf("AdminUpdateCV: Lỗi khi xóa khóa học hiện có: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
 			"message": "Error updating course records",
@@ -949,7 +946,7 @@ func AdminUpdateCV(c *gin.Context) {
 
 	_, err = tx.Exec(c, "DELETE FROM cv_skills WHERE cv_id = $1", cvDetailID)
 	if err != nil {
-		fmt.Printf("AdminUpdateCV: Error deleting existing skills: %v\n", err)
+		fmt.Printf("AdminUpdateCV: Lỗi khi xóa kỹ năng hiện có: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
 			"message": "Error updating skill records",
@@ -957,16 +954,16 @@ func AdminUpdateCV(c *gin.Context) {
 		return
 	}
 
-	// Insert new education records
+	// Chèn các bản ghi học vấn mới
 	for _, edu := range request.Education {
-		// Only insert if organization is not empty (required field)
+		// Chỉ chèn nếu tổ chức không rỗng (trường bắt buộc)
 		if edu.Organization != "" {
 			_, err = tx.Exec(c,
 				`INSERT INTO cv_education (id, cv_id, organization, degree, major, graduation_year)
 				VALUES (uuid_generate_v4(), $1, $2, $3, $4, $5)`,
 				cvDetailID, edu.Organization, edu.Degree, edu.Major, edu.GraduationYear)
 			if err != nil {
-				fmt.Printf("AdminUpdateCV: Error inserting education record: %v\n", err)
+				fmt.Printf("AdminUpdateCV: Lỗi khi chèn bản ghi học vấn: %v\n", err)
 				c.JSON(http.StatusInternalServerError, gin.H{
 					"status":  "error",
 					"message": "Error creating education record",
@@ -976,9 +973,9 @@ func AdminUpdateCV(c *gin.Context) {
 		}
 	}
 
-	// Insert new course records
+	// Chèn các bản ghi khóa học mới
 	for _, course := range request.Courses {
-		// Only insert if course name is not empty (required field)
+		// Chỉ chèn nếu tên khóa học không rỗng (trường bắt buộc)
 		if course.CourseName != "" {
 			var finishDate *time.Time
 			if course.FinishDate != "" {
@@ -992,7 +989,7 @@ func AdminUpdateCV(c *gin.Context) {
 				VALUES (uuid_generate_v4(), $1, $2, $3, $4)`,
 				cvDetailID, course.CourseName, course.Organization, finishDate)
 			if err != nil {
-				fmt.Printf("AdminUpdateCV: Error inserting course record: %v\n", err)
+				fmt.Printf("AdminUpdateCV: Lỗi khi chèn bản ghi khóa học: %v\n", err)
 				c.JSON(http.StatusInternalServerError, gin.H{
 					"status":  "error",
 					"message": "Error creating course record",
@@ -1002,16 +999,16 @@ func AdminUpdateCV(c *gin.Context) {
 		}
 	}
 
-	// Insert new skill records
+	// Chèn các bản ghi kỹ năng mới
 	for _, skill := range request.Skills {
-		// Only insert if skill name is not empty (required field)
+		// Chỉ chèn nếu tên kỹ năng không rỗng (trường bắt buộc)
 		if skill.SkillName != "" {
 			_, err = tx.Exec(c,
 				`INSERT INTO cv_skills (id, cv_id, skill_name, description)
 				VALUES (uuid_generate_v4(), $1, $2, $3)`,
 				cvDetailID, skill.SkillName, skill.Description)
 			if err != nil {
-				fmt.Printf("AdminUpdateCV: Error inserting skill record: %v\n", err)
+				fmt.Printf("AdminUpdateCV: Lỗi khi chèn bản ghi kỹ năng: %v\n", err)
 				c.JSON(http.StatusInternalServerError, gin.H{
 					"status":  "error",
 					"message": "Error creating skill record",
@@ -1024,7 +1021,7 @@ func AdminUpdateCV(c *gin.Context) {
 	// Commit transaction
 	err = tx.Commit(c)
 	if err != nil {
-		fmt.Printf("AdminUpdateCV: Error committing transaction: %v\n", err)
+		fmt.Printf("AdminUpdateCV: Lỗi khi commit transaction: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
 			"message": "Error saving CV data",
@@ -1032,9 +1029,9 @@ func AdminUpdateCV(c *gin.Context) {
 		return
 	}
 
-	// After successful CV update, mark any pending update requests as processed (outside transaction)
+	// Sau khi cập nhật CV thành công, đánh dấu các yêu cầu cập nhật đang chờ là đã xử lý (ngoài transaction)
 	if isUpdate {
-		fmt.Printf("AdminUpdateCV: Marking pending CV update requests as processed for CV %s\n", cvID)
+		fmt.Printf("AdminUpdateCV: Đánh dấu các yêu cầu cập nhật CV đang chờ là đã xử lý cho CV %s\n", cvID)
 		result, err := database.DB.Exec(c,
 			`UPDATE cv_update_requests
 			SET status = 'Đã xử lý'
@@ -1042,15 +1039,15 @@ func AdminUpdateCV(c *gin.Context) {
 			cvID)
 
 		if err != nil {
-			fmt.Printf("AdminUpdateCV: Error updating CV request status: %v\n", err)
-			// Don't fail the entire operation, just log the error
+			fmt.Printf("AdminUpdateCV: Lỗi cập nhật trạng thái yêu cầu CV: %v\n", err)
+			// Không làm thất bại toàn bộ operation, chỉ log lỗi
 		} else {
 			rowsAffected := result.RowsAffected()
-			fmt.Printf("AdminUpdateCV: Successfully marked %d CV update requests as processed\n", rowsAffected)
+			fmt.Printf("AdminUpdateCV: Đánh dấu thành công %d yêu cầu cập nhật CV là đã xử lý\n", rowsAffected)
 		}
 	}
 
-	// Prepare response data
+	// Chuẩn bị dữ liệu response
 	cv := models.CV{
 		ID:            cvID,
 		UserID:        targetUserID,
@@ -1079,11 +1076,11 @@ func AdminUpdateCV(c *gin.Context) {
 		CreatedAt:    time.Now(),
 	}
 
-	// Load related data (education, courses, skills) using helper function
+	// Tải dữ liệu liên quan (học vấn, khóa học, kỹ năng) sử dụng helper function
 	education, courses, skills, err := loadCVRelatedData(c, cvDetailID)
 	if err != nil {
-		fmt.Printf("AdminUpdateCV: Error loading related data: %v\n", err)
-		// Don't fail the entire operation, just log the error and continue with empty arrays
+		fmt.Printf("AdminUpdateCV: Lỗi tải dữ liệu liên quan: %v\n", err)
+		// Không làm thất bại toàn bộ operation, chỉ log lỗi và tiếp tục với mảng rỗng
 		details.Education = []models.CVEducation{}
 		details.Courses = []models.CVCourse{}
 		details.Skills = []models.CVSkill{}
@@ -1093,7 +1090,7 @@ func AdminUpdateCV(c *gin.Context) {
 		details.Skills = skills
 	}
 
-	// Create response with both CV and details
+	// Tạo response với cả CV và chi tiết
 	response := map[string]interface{}{
 		"cv":      cv,
 		"details": details,
@@ -1109,8 +1106,8 @@ func AdminUpdateCV(c *gin.Context) {
 		message = "CV đã được tạo thành công bởi admin"
 	}
 
-	fmt.Printf("AdminUpdateCV: Successfully %s CV %s for user %s by admin %s\n",
-		map[bool]string{true: "updated", false: "created"}[isUpdate], cvID, targetUserID, adminUserID)
+	fmt.Printf("AdminUpdateCV: %s CV thành công %s cho user %s bởi admin %s\n",
+		map[bool]string{true: "Cập nhật", false: "Tạo"}[isUpdate], cvID, targetUserID, adminUserID)
 
 	c.JSON(statusCode, gin.H{
 		"status":  "success",
@@ -1119,10 +1116,9 @@ func AdminUpdateCV(c *gin.Context) {
 	})
 }
 
-// DeleteCV clears all CV data for a specified user and sets status to "Chưa cập nhật"
-// Admin can delete any user's CV by providing user_id parameter
+// DeleteCV xóa tất cả dữ liệu CV cho người dùng được chỉ định và đặt trạng thái thành "Chưa cập nhật"
 func DeleteCV(c *gin.Context) {
-	// Get target user ID from URL parameter
+	// Lấy target user ID từ URL parameter
 	targetUserID := c.Param("user_id")
 	if targetUserID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -1132,7 +1128,7 @@ func DeleteCV(c *gin.Context) {
 		return
 	}
 
-	// Get current user ID from context (set by auth middleware) for logging
+	// Lấy current user ID từ context (được set bởi auth middleware) để logging
 	currentUserID, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -1142,9 +1138,9 @@ func DeleteCV(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("DeleteCV: Admin %v processing CV deletion for user %v\n", currentUserID, targetUserID)
+	fmt.Printf("DeleteCV: Admin %v xử lý xóa CV cho user %v\n", currentUserID, targetUserID)
 
-	// Check if user has a CV
+	// Kiểm tra user có CV không
 	var existingCVID string
 	var existingCVDetailID *string
 	err := database.DB.QueryRow(c,
@@ -1154,7 +1150,7 @@ func DeleteCV(c *gin.Context) {
 		WHERE cv.user_id = $1`, targetUserID).Scan(&existingCVID, &existingCVDetailID)
 
 	if err != nil {
-		fmt.Printf("DeleteCV: No CV found for user %v: %v\n", targetUserID, err)
+		fmt.Printf("DeleteCV: Không tìm thấy CV cho user %v: %v\n", targetUserID, err)
 		c.JSON(http.StatusNotFound, gin.H{
 			"status":  "error",
 			"message": "Không tìm thấy CV để xóa",
@@ -1162,12 +1158,12 @@ func DeleteCV(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("DeleteCV: Found CV %s for user %v\n", existingCVID, targetUserID)
+	fmt.Printf("DeleteCV: Tìm thấy CV %s cho user %v\n", existingCVID, targetUserID)
 
-	// Start transaction
+	// Bắt đầu transaction
 	tx, err := database.DB.Begin(c)
 	if err != nil {
-		fmt.Printf("DeleteCV: Error starting transaction: %v\n", err)
+		fmt.Printf("DeleteCV: Lỗi khi bắt đầu transaction: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
 			"message": "Error starting transaction",
@@ -1176,14 +1172,14 @@ func DeleteCV(c *gin.Context) {
 	}
 	defer tx.Rollback(c)
 
-	// Update CV status to "Chưa cập nhật" (use current user as the one who performed the deletion)
+	// Cập nhật trạng thái CV thành "Chưa cập nhật" (sử dụng current user làm người thực hiện xóa)
 	err = tx.QueryRow(c,
 		`UPDATE cv SET last_updated_by = $1, last_updated_at = NOW(), status = 'Chưa cập nhật'
 		WHERE id = $2 RETURNING id`,
 		currentUserID, existingCVID).Scan(&existingCVID)
 
 	if err != nil {
-		fmt.Printf("DeleteCV: Error updating CV status: %v\n", err)
+		fmt.Printf("DeleteCV: Lỗi khi cập nhật trạng thái CV: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
 			"message": "Error updating CV status",
@@ -1191,11 +1187,11 @@ func DeleteCV(c *gin.Context) {
 		return
 	}
 
-	// If CV details exist, clear all fields
+	// Nếu chi tiết CV tồn tại, xóa tất cả các trường
 	if existingCVDetailID != nil {
-		fmt.Printf("DeleteCV: Clearing CV details %s\n", *existingCVDetailID)
+		fmt.Printf("DeleteCV: Xóa chi tiết CV %s\n", *existingCVDetailID)
 
-		// Clear all CV details fields
+		// Xóa tất cả các trường chi tiết CV
 		err = tx.QueryRow(c,
 			`UPDATE cv_details SET
 			full_name = '', job_title = '', summary = '',
@@ -1205,7 +1201,7 @@ func DeleteCV(c *gin.Context) {
 			*existingCVDetailID).Scan(existingCVDetailID)
 
 		if err != nil {
-			fmt.Printf("DeleteCV: Error clearing CV details: %v\n", err)
+			fmt.Printf("DeleteCV: Lỗi khi xóa chi tiết CV: %v\n", err)
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"status":  "error",
 				"message": "Error clearing CV details",
@@ -1213,10 +1209,10 @@ func DeleteCV(c *gin.Context) {
 			return
 		}
 
-		// Delete all education records
+		// Xóa tất cả bản ghi học vấn
 		_, err = tx.Exec(c, "DELETE FROM cv_education WHERE cv_id = $1", *existingCVDetailID)
 		if err != nil {
-			fmt.Printf("DeleteCV: Error deleting education records: %v\n", err)
+			fmt.Printf("DeleteCV: Lỗi khi xóa các bản ghi học vấn: %v\n", err)
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"status":  "error",
 				"message": "Error clearing education data",
@@ -1224,10 +1220,10 @@ func DeleteCV(c *gin.Context) {
 			return
 		}
 
-		// Delete all course records
+		// Xóa tất cả bản ghi khóa học
 		_, err = tx.Exec(c, "DELETE FROM cv_courses WHERE cv_id = $1", *existingCVDetailID)
 		if err != nil {
-			fmt.Printf("DeleteCV: Error deleting course records: %v\n", err)
+			fmt.Printf("DeleteCV: Lỗi khi xóa các bản ghi khóa học: %v\n", err)
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"status":  "error",
 				"message": "Error clearing course data",
@@ -1235,10 +1231,10 @@ func DeleteCV(c *gin.Context) {
 			return
 		}
 
-		// Delete all skill records
+		// Xóa tất cả bản ghi kỹ năng
 		_, err = tx.Exec(c, "DELETE FROM cv_skills WHERE cv_id = $1", *existingCVDetailID)
 		if err != nil {
-			fmt.Printf("DeleteCV: Error deleting skill records: %v\n", err)
+			fmt.Printf("DeleteCV: Lỗi khi xóa các bản ghi kỹ năng: %v\n", err)
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"status":  "error",
 				"message": "Error clearing skill data",
@@ -1250,7 +1246,7 @@ func DeleteCV(c *gin.Context) {
 	// Commit transaction
 	err = tx.Commit(c)
 	if err != nil {
-		fmt.Printf("DeleteCV: Error committing transaction: %v\n", err)
+		fmt.Printf("DeleteCV: Lỗi khi commit transaction: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
 			"message": "Error committing CV deletion",
@@ -1258,7 +1254,7 @@ func DeleteCV(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("DeleteCV: Successfully cleared CV %s for user %v\n", existingCVID, targetUserID)
+	fmt.Printf("DeleteCV: Xóa thành công CV %s cho user %v\n", existingCVID, targetUserID)
 
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "success",

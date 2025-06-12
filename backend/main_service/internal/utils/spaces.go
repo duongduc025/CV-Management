@@ -37,15 +37,15 @@ func NewSpacesClient() (*SpacesClient, error) {
 		SecretKey: os.Getenv("DO_SPACES_SECRET"),
 		Endpoint:  os.Getenv("DO_SPACES_ENDPOINT"),
 		Bucket:    os.Getenv("DO_SPACES_BUCKET"),
-		Region:    "sgp1", // Singapore region for Digital Ocean Spaces
+		Region:    "sgp1", // Singapore region cho Digital Ocean Spaces
 	}
 
-	// Validate required environment variables
+	// Xác thực các biến môi trường cần thiết
 	if config.AccessKey == "" || config.SecretKey == "" || config.Endpoint == "" || config.Bucket == "" {
 		return nil, fmt.Errorf("missing required Digital Ocean Spaces configuration")
 	}
 
-	// Create AWS session with Digital Ocean Spaces endpoint
+	// Tạo AWS session với Digital Ocean Spaces endpoint
 	sess, err := session.NewSession(&aws.Config{
 		Credentials: credentials.NewStaticCredentials(config.AccessKey, config.SecretKey, ""),
 		Endpoint:    aws.String(config.Endpoint),
@@ -64,36 +64,36 @@ func NewSpacesClient() (*SpacesClient, error) {
 
 // UploadFile uploads a file to Digital Ocean Spaces
 func (sc *SpacesClient) UploadFile(fileHeader *multipart.FileHeader, fileData []byte, folder string) (string, error) {
-	// Generate unique filename
+	// Tạo tên file duy nhất
 	filename := generateUniqueFilename(fileHeader.Filename)
 	key := filepath.Join(folder, filename)
 
-	// Determine content type
+	// Xác định content type
 	contentType := getContentType(fileHeader.Filename)
 
-	// Upload to Digital Ocean Spaces
+	// Upload lên Digital Ocean Spaces
 	_, err := sc.client.PutObject(&s3.PutObjectInput{
 		Bucket:        aws.String(sc.config.Bucket),
 		Key:           aws.String(key),
 		Body:          bytes.NewReader(fileData),
 		ContentLength: aws.Int64(int64(len(fileData))),
 		ContentType:   aws.String(contentType),
-		ACL:           aws.String("public-read"), // Make file publicly accessible
+		ACL:           aws.String("public-read"), // Làm cho file có thể truy cập công khai
 	})
 
 	if err != nil {
 		return "", fmt.Errorf("failed to upload file: %w", err)
 	}
 
-	// Return the public URL
-	// For Digital Ocean Spaces, the public URL format is: https://bucket-name.region.digitaloceanspaces.com/key
+	// Trả về URL công khai
+	// Đối với Digital Ocean Spaces, format URL công khai là: https://bucket-name.region.digitaloceanspaces.com/key
 	publicURL := fmt.Sprintf("https://%s.%s/%s", sc.config.Bucket, strings.TrimPrefix(sc.config.Endpoint, "https://"), key)
 	return publicURL, nil
 }
 
 // DeleteFile deletes a file from Digital Ocean Spaces
 func (sc *SpacesClient) DeleteFile(fileURL string) error {
-	// Extract key from URL
+	// Trích xuất key từ URL
 	key := extractKeyFromURL(fileURL, sc.config.Endpoint)
 	if key == "" {
 		return fmt.Errorf("invalid file URL")
@@ -139,8 +139,8 @@ func getContentType(filename string) string {
 
 // extractKeyFromURL extracts the object key from a Digital Ocean Spaces URL
 func extractKeyFromURL(fileURL, endpoint string) string {
-	// For Digital Ocean Spaces, URLs are in format: https://bucket-name.region.digitaloceanspaces.com/key
-	// We need to extract everything after the domain
+	// Đối với Digital Ocean Spaces, URL có format: https://bucket-name.region.digitaloceanspaces.com/key
+	// Chúng ta cần trích xuất mọi thứ sau domain
 	if strings.Contains(fileURL, "digitaloceanspaces.com/") {
 		parts := strings.Split(fileURL, "digitaloceanspaces.com/")
 		if len(parts) == 2 {
@@ -180,32 +180,32 @@ func IsValidPDFType(filename string) bool {
 
 // ValidatePDFFile validates if the uploaded file is a valid PDF
 func ValidatePDFFile(fileHeader *multipart.FileHeader) error {
-	// Check file extension
+	// Kiểm tra phần mở rộng file
 	if !IsValidPDFType(fileHeader.Filename) {
 		return fmt.Errorf("invalid file type. Only PDF files are supported")
 	}
 
-	// Check file size (max 20MB for PDFs)
+	// Kiểm tra kích thước file (tối đa 20MB cho PDF)
 	const maxPDFSize = 20 * 1024 * 1024 // 20MB
 	if fileHeader.Size > maxPDFSize {
 		return fmt.Errorf("PDF file size exceeds maximum limit of 20MB")
 	}
 
-	// Basic PDF header validation
+	// Xác thực header PDF cơ bản
 	file, err := fileHeader.Open()
 	if err != nil {
 		return fmt.Errorf("failed to open file: %w", err)
 	}
 	defer file.Close()
 
-	// Read first 4 bytes to check PDF signature
+	// Đọc 4 bytes đầu tiên để kiểm tra signature PDF
 	header := make([]byte, 4)
 	_, err = file.Read(header)
 	if err != nil {
 		return fmt.Errorf("failed to read file header: %w", err)
 	}
 
-	// PDF files should start with "%PDF"
+	// File PDF phải bắt đầu bằng "%PDF"
 	if string(header) != "%PDF" {
 		return fmt.Errorf("invalid PDF file: missing PDF header")
 	}

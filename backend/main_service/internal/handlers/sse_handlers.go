@@ -51,7 +51,7 @@ func InitSSEManager() {
 
 // run handles SSE manager operations
 func (manager *SSEManager) run() {
-	ticker := time.NewTicker(30 * time.Second) // Ping every 30 seconds
+	ticker := time.NewTicker(30 * time.Second) // Ping mỗi 30 giây
 	defer ticker.Stop()
 
 	for {
@@ -72,14 +72,14 @@ func (manager *SSEManager) run() {
 				select {
 				case client.Channel <- message:
 				default:
-					// Client channel is full, remove client
+					// Channel client đầy, xóa client
 					delete(manager.clients, client.ID)
 					close(client.Channel)
 				}
 			}
 
 		case <-ticker.C:
-			// Send ping to all clients to keep connections alive
+			// Gửi ping tới tất cả clients để giữ kết nối
 			pingMessage := SSEMessage{
 				ID:    fmt.Sprintf("ping-%d", time.Now().Unix()),
 				Event: "ping",
@@ -90,7 +90,7 @@ func (manager *SSEManager) run() {
 				case client.Channel <- pingMessage:
 					client.LastPing = time.Now()
 				default:
-					// Client not responding, remove it
+					// Client không phản hồi, xóa nó
 					delete(manager.clients, client.ID)
 					close(client.Channel)
 				}
@@ -104,7 +104,7 @@ func validateSSEToken(tokenString string) (string, []string, error) {
 	log.Printf("SSE Token validation - Token length: %d", len(tokenString))
 	log.Printf("SSE Token validation - Token prefix: %s", tokenString[:min(50, len(tokenString))])
 
-	// Use the same validation logic as the auth middleware
+	// Sử dụng logic validation giống như auth middleware
 	claims, err := utils.ValidateToken(tokenString)
 	if err != nil {
 		log.Printf("SSE Token validation failed: %v", err)
@@ -127,12 +127,12 @@ func min(a, b int) int {
 func SSEConnect(c *gin.Context) {
 	log.Printf("SSE Connect request from: %s", c.ClientIP())
 
-	// Check for token in query parameter (since EventSource doesn't support custom headers)
+	// Kiểm tra token trong query parameter (vì EventSource không hỗ trợ custom headers)
 	token := c.Query("token")
 	log.Printf("SSE Token from query: %t", token != "")
 
 	if token == "" {
-		// Try to get from Authorization header as fallback
+		// Thử lấy từ Authorization header làm fallback
 		authHeader := c.GetHeader("Authorization")
 		if authHeader != "" && len(authHeader) > 7 && authHeader[:7] == "Bearer " {
 			token = authHeader[7:]
@@ -149,7 +149,7 @@ func SSEConnect(c *gin.Context) {
 		return
 	}
 
-	// Validate token and get user info
+	// Xác thực token và lấy thông tin user
 	userID, userRoles, err := validateSSEToken(token)
 	if err != nil {
 		log.Printf("SSE token validation failed: %v", err)
@@ -160,17 +160,17 @@ func SSEConnect(c *gin.Context) {
 		return
 	}
 
-	// Set SSE headers
+	// Đặt SSE headers
 	c.Header("Content-Type", "text/event-stream")
 	c.Header("Cache-Control", "no-cache")
 	c.Header("Connection", "keep-alive")
 	c.Header("Access-Control-Allow-Origin", "*")
 	c.Header("Access-Control-Allow-Headers", "Cache-Control")
 
-	// Create client ID
+	// Tạo client ID
 	clientID := fmt.Sprintf("%s-%d", userID, time.Now().UnixNano())
 
-	// Create SSE client
+	// Tạo SSE client
 	client := &SSEClient{
 		ID:       clientID,
 		Channel:  make(chan SSEMessage, 10),
@@ -179,15 +179,15 @@ func SSEConnect(c *gin.Context) {
 		LastPing: time.Now(),
 	}
 
-	// Register client
+	// Đăng ký client
 	sseManager.register <- client
 
-	// Handle client disconnection
+	// Xử lý ngắt kết nối client
 	defer func() {
 		sseManager.unregister <- client
 	}()
 
-	// Send initial connection message
+	// Gửi message kết nối ban đầu
 	initialMessage := SSEMessage{
 		ID:    fmt.Sprintf("connect-%d", time.Now().Unix()),
 		Event: "connected",
@@ -201,7 +201,7 @@ func SSEConnect(c *gin.Context) {
 	writeSSEMessage(c.Writer, initialMessage)
 	c.Writer.Flush()
 
-	// Listen for messages
+	// Lắng nghe messages
 	for {
 		select {
 		case message := <-client.Channel:
@@ -209,7 +209,7 @@ func SSEConnect(c *gin.Context) {
 			c.Writer.Flush()
 
 		case <-c.Request.Context().Done():
-			// Client disconnected
+			// Client đã ngắt kết nối
 			return
 		}
 	}
@@ -241,7 +241,7 @@ func SendSSENotificationToUser(userID string, event string, data map[string]any)
 		Data:  data,
 	}
 
-	// Send to specific user's clients
+	// Gửi tới clients của user cụ thể
 	for _, client := range sseManager.clients {
 		if client.UserID == userID {
 			select {

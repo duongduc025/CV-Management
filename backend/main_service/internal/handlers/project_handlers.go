@@ -14,7 +14,7 @@ import (
 
 // GetProjects returns a list of projects based on user role
 func GetProjects(c *gin.Context) {
-	// Get user ID from context
+	// Lấy user ID từ context
 	userID, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -24,7 +24,7 @@ func GetProjects(c *gin.Context) {
 		return
 	}
 
-	// Get user roles from context
+	// Lấy user roles từ context
 	roles, exists := c.Get("roles")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -34,7 +34,7 @@ func GetProjects(c *gin.Context) {
 		return
 	}
 
-	// Convert roles to string slice
+	// Chuyển đổi roles thành string slice
 	roleSlice, ok := roles.([]string)
 	if !ok {
 		fmt.Printf("GetProjects: Invalid role format: %T = %v\n", roles, roles)
@@ -57,15 +57,15 @@ func GetProjects(c *gin.Context) {
 
 	fmt.Printf("GetProjects: User ID: %v, Roles: %v\n", userIDStr, roleSlice)
 
-	// Role-based project access:
-	// - Admin: Can see all projects
-	// - PM: Can see projects they are members of
-	// - Employee: Can see projects they are members of
+	// Kiểm soát truy cập dự án dựa trên vai trò:
+	// - Admin: Có thể xem tất cả dự án
+	// - PM: Có thể xem dự án mà họ là thành viên
+	// - Employee: Có thể xem dự án mà họ là thành viên
 	var projects []models.Project
 
 	if slices.Contains(roleSlice, "Admin") {
-		// Admin can see all projects with member counts
-		fmt.Println("GetProjects: Admin access - fetching all projects with member counts")
+		// Admin có thể xem tất cả dự án với số lượng thành viên
+		fmt.Println("GetProjects: Quyền Admin - lấy tất cả dự án với số lượng thành viên")
 		rows, err := database.DB.Query(c, `
 			SELECT p.id, p.name, p.start_date, p.end_date,
 				   COALESCE(member_count.count, 0) as member_count
@@ -112,8 +112,8 @@ func GetProjects(c *gin.Context) {
 			return
 		}
 	} else if slices.Contains(roleSlice, "PM") {
-		// PM can see projects where they have PM role with member counts
-		fmt.Printf("GetProjects: PM access - fetching projects where user %s has PM role with member counts\n", userIDStr)
+		// PM có thể xem dự án mà họ có vai trò PM với số lượng thành viên
+		fmt.Printf("GetProjects: Quyền PM - lấy dự án mà user %s có vai trò PM với số lượng thành viên\n", userIDStr)
 		rows, err := database.DB.Query(c, `
 			SELECT DISTINCT p.id, p.name, p.start_date, p.end_date,
 				   COALESCE(member_count.count, 0) as member_count
@@ -164,8 +164,8 @@ func GetProjects(c *gin.Context) {
 			return
 		}
 	} else {
-		// Employee can see projects they are members of with member counts
-		fmt.Printf("GetProjects: Employee access - fetching projects for user %s with member counts\n", userIDStr)
+		// Employee có thể xem dự án mà họ là thành viên với số lượng thành viên
+		fmt.Printf("GetProjects: Quyền Employee - lấy dự án cho user %s với số lượng thành viên\n", userIDStr)
 		rows, err := database.DB.Query(c, `
 			SELECT DISTINCT p.id, p.name, p.start_date, p.end_date,
 				   COALESCE(member_count.count, 0) as member_count
@@ -216,7 +216,7 @@ func GetProjects(c *gin.Context) {
 		}
 	}
 
-	fmt.Printf("GetProjects: Returning %d projects for user %s\n", len(projects), userIDStr)
+	fmt.Printf("GetProjects: Trả về %d dự án cho user %s\n", len(projects), userIDStr)
 	c.JSON(http.StatusOK, gin.H{
 		"status": "success",
 		"data":   projects,
@@ -230,7 +230,7 @@ func GetProjectByID(c *gin.Context) {
 
 // CreateProject creates a new project
 func CreateProject(c *gin.Context) {
-	// Get user ID from context (creator of the project)
+	// Lấy user ID từ context (người tạo dự án)
 	userID, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -261,19 +261,19 @@ func CreateProject(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("CreateProject: Received data: %+v from user: %s\n", req, userIDStr)
+	fmt.Printf("CreateProject: Nhận dữ liệu: %+v từ user: %s\n", req, userIDStr)
 
-	// Create project struct
+	// Tạo struct project
 	project := models.Project{
 		Name: req.Name,
 	}
 
-	// Parse dates if provided
+	// Parse dates nếu được cung cấp
 	if req.StartDate != "" {
 		if startDate, err := time.Parse("2006-01-02", req.StartDate); err == nil {
 			project.StartDate = startDate
 		} else {
-			fmt.Printf("CreateProject: Invalid start_date format: %v\n", err)
+			fmt.Printf("CreateProject: Định dạng start_date không hợp lệ: %v\n", err)
 			c.JSON(http.StatusBadRequest, gin.H{
 				"status":  "error",
 				"message": "Invalid start_date format. Use YYYY-MM-DD",
@@ -286,7 +286,7 @@ func CreateProject(c *gin.Context) {
 		if endDate, err := time.Parse("2006-01-02", req.EndDate); err == nil {
 			project.EndDate = endDate
 		} else {
-			fmt.Printf("CreateProject: Invalid end_date format: %v\n", err)
+			fmt.Printf("CreateProject: Định dạng end_date không hợp lệ: %v\n", err)
 			c.JSON(http.StatusBadRequest, gin.H{
 				"status":  "error",
 				"message": "Invalid end_date format. Use YYYY-MM-DD",
@@ -295,7 +295,7 @@ func CreateProject(c *gin.Context) {
 		}
 	}
 
-	// Start database transaction
+	// Bắt đầu database transaction
 	tx, err := database.DB.Begin(c)
 	if err != nil {
 		fmt.Printf("CreateProject transaction error: %v\n", err)
@@ -305,9 +305,9 @@ func CreateProject(c *gin.Context) {
 		})
 		return
 	}
-	defer tx.Rollback(c) // Will be ignored if transaction is committed
+	defer tx.Rollback(c) // Sẽ bị bỏ qua nếu transaction được commit
 
-	// Save project to database
+	// Lưu project vào database
 	var projectID string
 	var query string
 	var args []interface{}
@@ -341,9 +341,9 @@ func CreateProject(c *gin.Context) {
 	}
 
 	project.ID = projectID
-	fmt.Printf("CreateProject: Successfully created project with ID: %s\n", projectID)
+	fmt.Printf("CreateProject: Tạo thành công project với ID: %s\n", projectID)
 
-	// Add the creator as a project member with PM role
+	// Thêm người tạo làm thành viên dự án với vai trò PM
 	memberQuery := `INSERT INTO project_members (project_id, user_id, role_in_project, joined_at) VALUES ($1, $2, $3, CURRENT_DATE)`
 	_, err = tx.Exec(c, memberQuery, projectID, userIDStr, "PM")
 	if err != nil {
@@ -355,9 +355,9 @@ func CreateProject(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("CreateProject: Successfully added user %s as PM of project %s\n", userIDStr, projectID)
+	fmt.Printf("CreateProject: Thêm thành công user %s làm PM của project %s\n", userIDStr, projectID)
 
-	// Commit the transaction
+	// Commit transaction
 	err = tx.Commit(c)
 	if err != nil {
 		fmt.Printf("CreateProject commit error: %v\n", err)
@@ -376,7 +376,7 @@ func CreateProject(c *gin.Context) {
 
 // CreateProjectWithPM creates a new project and assigns a PM (Admin only)
 func CreateProjectWithPM(c *gin.Context) {
-	fmt.Println("CreateProjectWithPM: Starting project creation with PM assignment")
+	fmt.Println("CreateProjectWithPM: Bắt đầu tạo project với phân công PM")
 
 	var projectData models.AdminProjectCreateRequest
 	if err := c.ShouldBindJSON(&projectData); err != nil {
@@ -388,9 +388,9 @@ func CreateProjectWithPM(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("CreateProjectWithPM: Project data: %+v\n", projectData)
+	fmt.Printf("CreateProjectWithPM: Dữ liệu project: %+v\n", projectData)
 
-	// Validate required fields
+	// Xác thực các trường bắt buộc
 	if projectData.Name == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  "error",
@@ -407,11 +407,11 @@ func CreateProjectWithPM(c *gin.Context) {
 		return
 	}
 
-	// Verify that the PM user exists and has PM role
+	// Xác minh rằng PM user tồn tại và có vai trò PM
 	var pmExists bool
 	var pmHasPMRole bool
 
-	// Check if user exists
+	// Kiểm tra user có tồn tại không
 	err := database.DB.QueryRow(c, "SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)", projectData.PMUserID).Scan(&pmExists)
 	if err != nil {
 		fmt.Printf("CreateProjectWithPM user check error: %v\n", err)
@@ -430,7 +430,7 @@ func CreateProjectWithPM(c *gin.Context) {
 		return
 	}
 
-	// Check if user has PM role
+	// Kiểm tra user có vai trò PM không
 	err = database.DB.QueryRow(c, `
 		SELECT EXISTS(
 			SELECT 1 FROM user_roles ur
@@ -454,7 +454,7 @@ func CreateProjectWithPM(c *gin.Context) {
 		return
 	}
 
-	// Start transaction
+	// Bắt đầu transaction
 	tx, err := database.DB.Begin(c)
 	if err != nil {
 		fmt.Printf("CreateProjectWithPM transaction error: %v\n", err)
@@ -466,7 +466,7 @@ func CreateProjectWithPM(c *gin.Context) {
 	}
 	defer tx.Rollback(c)
 
-	// Parse dates if provided
+	// Parse dates nếu được cung cấp
 	var startDate, endDate interface{}
 	if projectData.StartDate != "" {
 		parsedStartDate, err := time.Parse("2006-01-02", projectData.StartDate)
@@ -494,7 +494,7 @@ func CreateProjectWithPM(c *gin.Context) {
 		endDate = parsedEndDate
 	}
 
-	// Create project
+	// Tạo project
 	var projectID string
 	query := `INSERT INTO projects (id, name, start_date, end_date) VALUES (uuid_generate_v4(), $1, $2, $3) RETURNING id`
 	err = tx.QueryRow(c, query, projectData.Name, startDate, endDate).Scan(&projectID)
@@ -507,9 +507,9 @@ func CreateProjectWithPM(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("CreateProjectWithPM: Successfully created project with ID: %s\n", projectID)
+	fmt.Printf("CreateProjectWithPM: Tạo thành công project với ID: %s\n", projectID)
 
-	// Add the selected PM as a project member with PM role
+	// Thêm PM được chọn làm thành viên dự án với vai trò PM
 	memberQuery := `INSERT INTO project_members (project_id, user_id, role_in_project, joined_at) VALUES ($1, $2, $3, CURRENT_DATE)`
 	_, err = tx.Exec(c, memberQuery, projectID, projectData.PMUserID, "PM")
 	if err != nil {
@@ -521,7 +521,7 @@ func CreateProjectWithPM(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("CreateProjectWithPM: Successfully added PM %s to project %s\n", projectData.PMUserID, projectID)
+	fmt.Printf("CreateProjectWithPM: Thêm thành công PM %s vào project %s\n", projectData.PMUserID, projectID)
 
 	// Commit transaction
 	if err = tx.Commit(c); err != nil {
@@ -533,7 +533,7 @@ func CreateProjectWithPM(c *gin.Context) {
 		return
 	}
 
-	// Create response project object
+	// Tạo đối tượng response project
 	project := models.Project{
 		ID:   projectID,
 		Name: projectData.Name,
@@ -551,7 +551,7 @@ func CreateProjectWithPM(c *gin.Context) {
 		}
 	}
 
-	fmt.Printf("CreateProjectWithPM: Successfully created project %s with PM %s\n", project.Name, projectData.PMUserID)
+	fmt.Printf("CreateProjectWithPM: Tạo thành công project %s với PM %s\n", project.Name, projectData.PMUserID)
 
 	c.JSON(http.StatusCreated, gin.H{
 		"status": "success",
@@ -562,9 +562,9 @@ func CreateProjectWithPM(c *gin.Context) {
 // UpdateProject updates an existing project
 func UpdateProject(c *gin.Context) {
 	id := c.Param("id")
-	fmt.Printf("UpdateProject: Updating project %s\n", id)
+	fmt.Printf("UpdateProject: Cập nhật project %s\n", id)
 
-	// Use a custom struct to handle date strings properly
+	// Sử dụng struct tùy chỉnh để xử lý date strings đúng cách
 	var req struct {
 		Name      string `json:"name"`
 		StartDate string `json:"start_date,omitempty"`
@@ -580,9 +580,9 @@ func UpdateProject(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("UpdateProject: Received data: %+v\n", req)
+	fmt.Printf("UpdateProject: Nhận dữ liệu: %+v\n", req)
 
-	// Validate required fields
+	// Xác thực các trường bắt buộc
 	if req.Name == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  "error",
@@ -591,7 +591,7 @@ func UpdateProject(c *gin.Context) {
 		return
 	}
 
-	// Check if project exists
+	// Kiểm tra project có tồn tại không
 	var projectExists bool
 	err := database.DB.QueryRow(c, "SELECT EXISTS(SELECT 1 FROM projects WHERE id = $1)", id).Scan(&projectExists)
 	if err != nil {
@@ -611,7 +611,7 @@ func UpdateProject(c *gin.Context) {
 		return
 	}
 
-	// Parse dates if provided
+	// Parse dates nếu được cung cấp
 	var startDate *time.Time
 	var endDate *time.Time
 
@@ -619,7 +619,7 @@ func UpdateProject(c *gin.Context) {
 		if parsedStartDate, err := time.Parse("2006-01-02", req.StartDate); err == nil {
 			startDate = &parsedStartDate
 		} else {
-			fmt.Printf("UpdateProject: Invalid start_date format: %v\n", err)
+			fmt.Printf("UpdateProject: Định dạng start_date không hợp lệ: %v\n", err)
 			c.JSON(http.StatusBadRequest, gin.H{
 				"status":  "error",
 				"message": "Invalid start_date format. Use YYYY-MM-DD",
@@ -632,7 +632,7 @@ func UpdateProject(c *gin.Context) {
 		if parsedEndDate, err := time.Parse("2006-01-02", req.EndDate); err == nil {
 			endDate = &parsedEndDate
 		} else {
-			fmt.Printf("UpdateProject: Invalid end_date format: %v\n", err)
+			fmt.Printf("UpdateProject: Định dạng end_date không hợp lệ: %v\n", err)
 			c.JSON(http.StatusBadRequest, gin.H{
 				"status":  "error",
 				"message": "Invalid end_date format. Use YYYY-MM-DD",
@@ -641,7 +641,7 @@ func UpdateProject(c *gin.Context) {
 		}
 	}
 
-	// Build dynamic update query
+	// Xây dựng dynamic update query
 	setParts := []string{}
 	args := []interface{}{}
 	argIndex := 1
@@ -690,10 +690,10 @@ func UpdateProject(c *gin.Context) {
 		return
 	}
 
-	// Check if any rows were affected
+	// Kiểm tra có rows nào bị ảnh hưởng không
 	rowsAffected := result.RowsAffected()
 	if rowsAffected == 0 {
-		fmt.Printf("UpdateProject: No rows affected for project %s\n", id)
+		fmt.Printf("UpdateProject: Không có rows bị ảnh hưởng cho project %s\n", id)
 		c.JSON(http.StatusNotFound, gin.H{
 			"status":  "error",
 			"message": "Project not found",
@@ -701,7 +701,7 @@ func UpdateProject(c *gin.Context) {
 		return
 	}
 
-	// Fetch the updated project to return
+	// Lấy project đã cập nhật để trả về
 	var updatedProject models.Project
 	err = database.DB.QueryRow(c,
 		"SELECT id, name, start_date, end_date FROM projects WHERE id = $1",
@@ -715,7 +715,7 @@ func UpdateProject(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("UpdateProject: Successfully updated project %s\n", id)
+	fmt.Printf("UpdateProject: Cập nhật thành công project %s\n", id)
 
 	c.JSON(http.StatusOK, gin.H{
 		"status": "success",
@@ -726,9 +726,9 @@ func UpdateProject(c *gin.Context) {
 // DeleteProject deletes an existing project
 func DeleteProject(c *gin.Context) {
 	id := c.Param("id")
-	fmt.Printf("DeleteProject: Deleting project %s\n", id)
+	fmt.Printf("DeleteProject: Xóa project %s\n", id)
 
-	// Check if project exists
+	// Kiểm tra project có tồn tại không
 	var projectExists bool
 	var projectName string
 	err := database.DB.QueryRow(c, "SELECT EXISTS(SELECT 1 FROM projects WHERE id = $1), COALESCE((SELECT name FROM projects WHERE id = $1), '')", id).Scan(&projectExists, &projectName)
@@ -749,7 +749,7 @@ func DeleteProject(c *gin.Context) {
 		return
 	}
 
-	// Check if project has any members (optional warning, but we'll allow deletion)
+	// Kiểm tra project có thành viên nào không (cảnh báo tùy chọn, nhưng chúng ta vẫn cho phép xóa)
 	var memberCount int
 	err = database.DB.QueryRow(c,
 		"SELECT COUNT(*) FROM project_members WHERE project_id = $1 AND (left_at IS NULL OR left_at > CURRENT_DATE)",
@@ -763,9 +763,9 @@ func DeleteProject(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("DeleteProject: Project %s has %d active members\n", id, memberCount)
+	fmt.Printf("DeleteProject: Project %s có %d thành viên đang hoạt động\n", id, memberCount)
 
-	// Start database transaction for safe deletion
+	// Bắt đầu database transaction để xóa an toàn
 	tx, err := database.DB.Begin(c)
 	if err != nil {
 		fmt.Printf("DeleteProject transaction error: %v\n", err)
@@ -775,9 +775,9 @@ func DeleteProject(c *gin.Context) {
 		})
 		return
 	}
-	defer tx.Rollback(c) // Will be ignored if transaction is committed
+	defer tx.Rollback(c) // Sẽ bị bỏ qua nếu transaction được commit
 
-	// First, remove all project members (hard delete to avoid foreign key constraint)
+	// Đầu tiên, xóa tất cả thành viên dự án (hard delete để tránh ràng buộc foreign key)
 	_, err = tx.Exec(c, "DELETE FROM project_members WHERE project_id = $1", id)
 	if err != nil {
 		fmt.Printf("DeleteProject member removal error: %v\n", err)
@@ -788,7 +788,7 @@ func DeleteProject(c *gin.Context) {
 		return
 	}
 
-	// Delete the project
+	// Xóa project
 	result, err := tx.Exec(c, "DELETE FROM projects WHERE id = $1", id)
 	if err != nil {
 		fmt.Printf("DeleteProject delete error: %v\n", err)
@@ -799,10 +799,10 @@ func DeleteProject(c *gin.Context) {
 		return
 	}
 
-	// Check if any rows were affected
+	// Kiểm tra có rows nào bị ảnh hưởng không
 	rowsAffected := result.RowsAffected()
 	if rowsAffected == 0 {
-		fmt.Printf("DeleteProject: No rows affected for project %s\n", id)
+		fmt.Printf("DeleteProject: Không có rows bị ảnh hưởng cho project %s\n", id)
 		c.JSON(http.StatusNotFound, gin.H{
 			"status":  "error",
 			"message": "Project not found",
@@ -810,7 +810,7 @@ func DeleteProject(c *gin.Context) {
 		return
 	}
 
-	// Commit the transaction
+	// Commit transaction
 	err = tx.Commit(c)
 	if err != nil {
 		fmt.Printf("DeleteProject commit error: %v\n", err)
@@ -821,7 +821,7 @@ func DeleteProject(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("DeleteProject: Successfully deleted project %s (%s) with %d members\n", id, projectName, memberCount)
+	fmt.Printf("DeleteProject: Xóa thành công project %s (%s) với %d thành viên\n", id, projectName, memberCount)
 
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "success",
@@ -837,7 +837,7 @@ func DeleteProject(c *gin.Context) {
 // AddProjectMember adds a member to a project
 func AddProjectMember(c *gin.Context) {
 	projectID := c.Param("id")
-	fmt.Printf("AddProjectMember: Adding member to project %s\n", projectID)
+	fmt.Printf("AddProjectMember: Thêm thành viên vào project %s\n", projectID)
 
 	var memberData models.Member
 	if err := c.ShouldBindJSON(&memberData); err != nil {
@@ -849,7 +849,7 @@ func AddProjectMember(c *gin.Context) {
 		return
 	}
 
-	// Validate required fields
+	// Xác thực các trường bắt buộc
 	if memberData.UserID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  "error",
@@ -858,7 +858,7 @@ func AddProjectMember(c *gin.Context) {
 		return
 	}
 
-	// Check if project exists
+	// Kiểm tra project có tồn tại không
 	var projectExists bool
 	err := database.DB.QueryRow(c, "SELECT EXISTS(SELECT 1 FROM projects WHERE id = $1)", projectID).Scan(&projectExists)
 	if err != nil {
@@ -878,7 +878,7 @@ func AddProjectMember(c *gin.Context) {
 		return
 	}
 
-	// Check if user exists
+	// Kiểm tra user có tồn tại không
 	var userExists bool
 	err = database.DB.QueryRow(c, "SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)", memberData.UserID).Scan(&userExists)
 	if err != nil {
@@ -898,7 +898,7 @@ func AddProjectMember(c *gin.Context) {
 		return
 	}
 
-	// Check if user is already a member of this project
+	// Kiểm tra user đã là thành viên của project này chưa
 	var memberExists bool
 	err = database.DB.QueryRow(c,
 		"SELECT EXISTS(SELECT 1 FROM project_members WHERE project_id = $1 AND user_id = $2 AND (left_at IS NULL OR left_at > CURRENT_DATE))",
@@ -920,11 +920,11 @@ func AddProjectMember(c *gin.Context) {
 		return
 	}
 
-	// Insert new project member
+	// Chèn thành viên dự án mới
 	memberData.ProjectID = projectID
 	memberData.JoinedAt = time.Now()
 
-	// Set default role if not provided
+	// Đặt vai trò mặc định nếu không được cung cấp
 	if memberData.RoleInProject == "" {
 		memberData.RoleInProject = "Developer"
 	}
@@ -940,7 +940,7 @@ func AddProjectMember(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("AddProjectMember: Successfully added user %s to project %s with role %s\n",
+	fmt.Printf("AddProjectMember: Thêm thành công user %s vào project %s với vai trò %s\n",
 		memberData.UserID, projectID, memberData.RoleInProject)
 
 	c.JSON(http.StatusCreated, gin.H{
@@ -954,9 +954,9 @@ func RemoveProjectMember(c *gin.Context) {
 	projectID := c.Param("id")
 	userID := c.Param("userId")
 
-	fmt.Printf("RemoveProjectMember: Removing user %s from project %s\n", userID, projectID)
+	fmt.Printf("RemoveProjectMember: Xóa user %s khỏi project %s\n", userID, projectID)
 
-	// Validate required parameters
+	// Xác thực các tham số bắt buộc
 	if projectID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  "error",
@@ -973,7 +973,7 @@ func RemoveProjectMember(c *gin.Context) {
 		return
 	}
 
-	// Check if project exists
+	// Kiểm tra project có tồn tại không
 	var projectExists bool
 	err := database.DB.QueryRow(c, "SELECT EXISTS(SELECT 1 FROM projects WHERE id = $1)", projectID).Scan(&projectExists)
 	if err != nil {
@@ -993,7 +993,7 @@ func RemoveProjectMember(c *gin.Context) {
 		return
 	}
 
-	// Check if user exists
+	// Kiểm tra user có tồn tại không
 	var userExists bool
 	err = database.DB.QueryRow(c, "SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)", userID).Scan(&userExists)
 	if err != nil {
@@ -1013,7 +1013,7 @@ func RemoveProjectMember(c *gin.Context) {
 		return
 	}
 
-	// Check if user is currently a member of this project (not already left)
+	// Kiểm tra user hiện tại có phải là thành viên của project này không (chưa rời đi)
 	var memberExists bool
 	err = database.DB.QueryRow(c,
 		"SELECT EXISTS(SELECT 1 FROM project_members WHERE project_id = $1 AND user_id = $2 AND (left_at IS NULL OR left_at > CURRENT_DATE))",
@@ -1035,7 +1035,7 @@ func RemoveProjectMember(c *gin.Context) {
 		return
 	}
 
-	// Update the project member record to set left_at to current date (soft delete)
+	// Cập nhật bản ghi thành viên dự án để đặt left_at thành ngày hiện tại (soft delete)
 	query := `UPDATE project_members SET left_at = CURRENT_DATE WHERE project_id = $1 AND user_id = $2`
 	result, err := database.DB.Exec(c, query, projectID, userID)
 	if err != nil {
@@ -1047,10 +1047,10 @@ func RemoveProjectMember(c *gin.Context) {
 		return
 	}
 
-	// Check if any rows were affected
+	// Kiểm tra có rows nào bị ảnh hưởng không
 	rowsAffected := result.RowsAffected()
 	if rowsAffected == 0 {
-		fmt.Printf("RemoveProjectMember: No rows affected for project %s, user %s\n", projectID, userID)
+		fmt.Printf("RemoveProjectMember: Không có rows bị ảnh hưởng cho project %s, user %s\n", projectID, userID)
 		c.JSON(http.StatusNotFound, gin.H{
 			"status":  "error",
 			"message": "Member not found in project",
@@ -1058,7 +1058,7 @@ func RemoveProjectMember(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("RemoveProjectMember: Successfully removed user %s from project %s\n", userID, projectID)
+	fmt.Printf("RemoveProjectMember: Xóa thành công user %s khỏi project %s\n", userID, projectID)
 
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "success",
@@ -1071,7 +1071,7 @@ func RemoveProjectMember(c *gin.Context) {
 }
 
 func GetAllMembersOfAllProjects(c *gin.Context) {
-	// Get user ID from context for authorization
+	// Lấy user ID từ context để xác thực
 	requestUserID, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -1081,7 +1081,7 @@ func GetAllMembersOfAllProjects(c *gin.Context) {
 		return
 	}
 
-	// Get user roles from context
+	// Lấy user roles từ context
 	roles, exists := c.Get("roles")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -1091,7 +1091,7 @@ func GetAllMembersOfAllProjects(c *gin.Context) {
 		return
 	}
 
-	// Convert roles to string slice
+	// Chuyển đổi roles thành string slice
 	roleSlice, ok := roles.([]string)
 	if !ok {
 		fmt.Printf("GetAllMembersOfAllProjects: Invalid role format: %T = %v\n", roles, roles)
@@ -1112,9 +1112,9 @@ func GetAllMembersOfAllProjects(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("GetAllMembersOfAllProjects: Request from PM user %s, Roles: %v\n", requestUserIDStr, roleSlice)
+	fmt.Printf("GetAllMembersOfAllProjects: Yêu cầu từ PM user %s, Roles: %v\n", requestUserIDStr, roleSlice)
 
-	// Only PM can access this function
+	// Chỉ PM mới có thể truy cập function này
 	if !slices.Contains(roleSlice, "PM") {
 		c.JSON(http.StatusForbidden, gin.H{
 			"status":  "error",
@@ -1123,8 +1123,8 @@ func GetAllMembersOfAllProjects(c *gin.Context) {
 		return
 	}
 
-	// PM can see all members of projects where they have PM role, grouped by user
-	fmt.Printf("GetAllMembersOfAllProjects: PM access - fetching grouped project members for projects where user %s has PM role\n", requestUserIDStr)
+	// PM có thể xem tất cả thành viên của dự án mà họ có vai trò PM, được nhóm theo user
+	fmt.Printf("GetAllMembersOfAllProjects: Quyền PM - lấy thành viên dự án được nhóm cho các dự án mà user %s có vai trò PM\n", requestUserIDStr)
 
 	query := `
 		SELECT u.id, u.employee_code, u.full_name, u.email, u.department_id,
@@ -1142,7 +1142,7 @@ func GetAllMembersOfAllProjects(c *gin.Context) {
 		GROUP BY u.id, u.employee_code, u.full_name, u.email, u.department_id, d.name
 		ORDER BY u.full_name`
 
-	// Execute query
+	// Thực thi query
 	rows, err := database.DB.Query(c, query, requestUserIDStr)
 	if err != nil {
 		fmt.Printf("GetAllMembersOfAllProjects error: %v\n", err)
@@ -1171,7 +1171,7 @@ func GetAllMembersOfAllProjects(c *gin.Context) {
 			return
 		}
 
-		// Set department if available
+		// Đặt department nếu có
 		if user.DepartmentID != "" && deptName != "" {
 			user.Department = models.Department{
 				ID:   user.DepartmentID,
@@ -1179,17 +1179,17 @@ func GetAllMembersOfAllProjects(c *gin.Context) {
 			}
 		}
 
-		// Convert project names string to slice
+		// Chuyển đổi chuỗi tên dự án thành slice
 		if projectNames != "" {
 			user.Projects = strings.Split(projectNames, ", ")
 		} else {
 			user.Projects = []string{}
 		}
 
-		// Get user roles
+		// Lấy user roles
 		userRoles, err := getUserRoles(c, user.ID)
 		if err != nil {
-			fmt.Printf("Warning: Could not fetch roles for user %s: %v\n", user.ID, err)
+			fmt.Printf("Cảnh báo: Không thể lấy roles cho user %s: %v\n", user.ID, err)
 		} else {
 			user.Roles = userRoles
 		}
@@ -1197,7 +1197,7 @@ func GetAllMembersOfAllProjects(c *gin.Context) {
 		users = append(users, user)
 	}
 
-	// Check for errors during iteration
+	// Kiểm tra lỗi trong quá trình iteration
 	if err = rows.Err(); err != nil {
 		fmt.Printf("GetAllMembersOfAllProjects iteration error: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -1207,7 +1207,7 @@ func GetAllMembersOfAllProjects(c *gin.Context) {
 		return
 	}
 
-	fmt.Printf("GetAllMembersOfAllProjects: Returning %d users for request from user %s\n", len(users), requestUserIDStr)
+	fmt.Printf("GetAllMembersOfAllProjects: Trả về %d users cho yêu cầu từ user %s\n", len(users), requestUserIDStr)
 	c.JSON(http.StatusOK, gin.H{
 		"status": "success",
 		"data":   users,

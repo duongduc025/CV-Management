@@ -11,24 +11,24 @@ import (
 	"github.com/vdt/cv-management/internal/utils"
 )
 
-// Register creates new user accounts from a list of form data objects (mass registration)
+// Register tạo tài khoản người dùng mới từ danh sách dữ liệu form (đăng ký hàng loạt)
 func Register(c *gin.Context) {
 	var bulkRegisterData models.BulkUserRegister
 
 	if err := c.ShouldBindJSON(&bulkRegisterData); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  "error",
-			"message": "Invalid registration data",
+			"message": "Dữ liệu đăng ký không hợp lệ",
 		})
 		return
 	}
 
-	// Start a transaction for all registrations
+	// Bắt đầu một giao dịch cho tất cả các đăng ký
 	tx, err := database.DB.Begin(c)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
-			"message": "Error starting transaction",
+			"message": "Lỗi khi bắt đầu giao dịch",
 		})
 		return
 	}
@@ -38,7 +38,7 @@ func Register(c *gin.Context) {
 	successCount := 0
 	totalCount := len(bulkRegisterData.Users)
 
-	// Process each user registration
+	// Xử lý từng đăng ký người dùng
 	for _, registerData := range bulkRegisterData.Users {
 		result := models.UserRegistrationResult{
 			EmployeeCode: registerData.EmployeeCode,
@@ -47,38 +47,38 @@ func Register(c *gin.Context) {
 			Success:      false,
 		}
 
-		// Automatically add Employee role if not present
+		// Tự động thêm vai trò Nhân viên nếu không có
 		if !slices.Contains(registerData.RoleNames, "Employee") {
 			registerData.RoleNames = append(registerData.RoleNames, "Employee")
 		}
 
-		// Check if email already exists
+		// Kiểm tra xem email đã tồn tại chưa
 		var exists bool
 		err := tx.QueryRow(c,
 			"SELECT EXISTS(SELECT 1 FROM users WHERE email = $1)",
 			registerData.Email).Scan(&exists)
 
 		if err != nil {
-			result.Error = "Error checking email availability"
+			result.Error = "Lỗi khi kiểm tra tính khả dụng của email"
 			results = append(results, result)
 			continue
 		}
 
 		if exists {
-			result.Error = "Email already registered"
+			result.Error = "Email đã được đăng ký"
 			results = append(results, result)
 			continue
 		}
 
-		// Hash password
+		// Băm mật khẩu
 		hashedPassword, err := utils.HashPassword(registerData.Password)
 		if err != nil {
-			result.Error = "Error processing password"
+			result.Error = "Lỗi khi xử lý mật khẩu"
 			results = append(results, result)
 			continue
 		}
 
-		// Insert new user
+		// Chèn người dùng mới
 		var userID string
 		err = tx.QueryRow(c,
 			`INSERT INTO users (id, employee_code, full_name, email, password, department_id, created_at)
@@ -87,18 +87,18 @@ func Register(c *gin.Context) {
 			registerData.EmployeeCode, registerData.FullName, registerData.Email, hashedPassword, registerData.DepartmentID).Scan(&userID)
 
 		if err != nil {
-			result.Error = "Error creating user account"
+			result.Error = "Lỗi khi tạo tài khoản người dùng"
 			results = append(results, result)
 			continue
 		}
 
-		// Assign the selected roles
+		// Gán các vai trò đã chọn
 		roleAssignmentFailed := false
 		for _, roleName := range registerData.RoleNames {
 			var roleID string
 			err = tx.QueryRow(c, "SELECT id FROM roles WHERE name = $1", roleName).Scan(&roleID)
 			if err != nil {
-				result.Error = "Error getting role: " + roleName
+				result.Error = "Lỗi khi lấy vai trò: " + roleName
 				roleAssignmentFailed = true
 				break
 			}
@@ -108,7 +108,7 @@ func Register(c *gin.Context) {
 				userID, roleID)
 
 			if err != nil {
-				result.Error = "Error assigning role: " + roleName
+				result.Error = "Lỗi khi gán vai trò: " + roleName
 				roleAssignmentFailed = true
 				break
 			}
@@ -119,48 +119,48 @@ func Register(c *gin.Context) {
 			continue
 		}
 
-		// Create an empty CV for the new user
+		// Tạo một CV trống cho người dùng mới
 		var cvID string
 		err = tx.QueryRow(c,
 			"INSERT INTO cv (id, user_id, status) VALUES (uuid_generate_v4(), $1, 'Chưa cập nhật') RETURNING id",
 			userID).Scan(&cvID)
 
 		if err != nil {
-			result.Error = "Error creating user CV"
+			result.Error = "Lỗi khi tạo CV cho người dùng"
 			results = append(results, result)
 			continue
 		}
 
-		// Create empty CV details for the new CV
+		// Tạo chi tiết CV trống cho CV mới
 		_, err = tx.Exec(c,
 			`INSERT INTO cv_details (id, cv_id, full_name, job_title, summary, created_at)
 			VALUES (uuid_generate_v4(), $1, '', '', '', NOW())`,
 			cvID)
 
 		if err != nil {
-			result.Error = "Error creating user CV details"
+			result.Error = "Lỗi khi tạo chi tiết CV cho người dùng"
 			results = append(results, result)
 			continue
 		}
 
-		// If we reach here, the user was successfully created
+		// Nếu đến đây, người dùng đã được tạo thành công
 		result.Success = true
 		successCount++
 		results = append(results, result)
 	}
 
-	// Commit transaction only if at least one user was successfully created
+	// Cam kết giao dịch chỉ khi ít nhất một người dùng được tạo thành công
 	if successCount > 0 {
 		if err = tx.Commit(c); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"status":  "error",
-				"message": "Error committing transaction",
+				"message": "Lỗi khi cam kết giao dịch",
 			})
 			return
 		}
 	}
 
-	// Prepare response
+	// Chuẩn bị phản hồi
 	bulkResult := models.BulkRegistrationResult{
 		TotalUsers:      totalCount,
 		SuccessfulUsers: successCount,
@@ -168,7 +168,7 @@ func Register(c *gin.Context) {
 		Results:         results,
 	}
 
-	// Determine response status based on results
+	// Xác định trạng thái phản hồi dựa trên kết quả
 	if successCount == totalCount {
 		c.JSON(http.StatusCreated, gin.H{
 			"status":  "success",
@@ -190,23 +190,22 @@ func Register(c *gin.Context) {
 	}
 }
 
-// Login authenticates a user and returns JWT tokens
+// Login xác thực người dùng và trả về JWT tokens
 func Login(c *gin.Context) {
 	var loginData models.UserLogin
 
 	if err := c.ShouldBindJSON(&loginData); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  "error",
-			"message": "Invalid login data",
+			"message": "Dữ liệu đăng nhập không hợp lệ",
 		})
 		return
 	}
 
-	// Mock user retrieval - in real implementation, query the database
 	var user models.User
 	var hashedPassword string
 
-	// Get user by email
+	// Lấy người dùng theo email
 	row := database.DB.QueryRow(c,
 		`SELECT u.id, u.employee_code, u.full_name, u.email, u.password, u.department_id, d.name
 		FROM users u
@@ -214,7 +213,7 @@ func Login(c *gin.Context) {
 		WHERE u.email = $1`,
 		loginData.Email)
 
-	// Scan into user object
+	// Quét vào đối tượng người dùng
 	var deptID, deptName sql.NullString
 	err := row.Scan(&user.ID, &user.EmployeeCode, &user.FullName, &user.Email,
 		&hashedPassword, &deptID, &deptName)
@@ -227,7 +226,7 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	// Check password
+	// Kiểm tra mật khẩu
 	if !utils.CheckPasswordHash(loginData.Password, hashedPassword) {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"status":  "error",
@@ -236,7 +235,7 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	// Fill in department data if available
+	// Điền dữ liệu phòng ban nếu có
 	if deptID.Valid && deptName.Valid {
 		user.DepartmentID = deptID.String
 		user.Department = models.Department{
@@ -245,7 +244,7 @@ func Login(c *gin.Context) {
 		}
 	}
 
-	// Get user roles
+	// Lấy vai trò của người dùng
 	rows, err := database.DB.Query(c,
 		`SELECT r.id, r.name
 		FROM user_roles ur
@@ -256,7 +255,7 @@ func Login(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
-			"message": "Error fetching roles",
+			"message": "Lỗi khi lấy vai trò",
 		})
 		return
 	}
@@ -268,7 +267,7 @@ func Login(c *gin.Context) {
 		if err := rows.Scan(&role.ID, &role.Name); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"status":  "error",
-				"message": "Error scanning roles",
+				"message": "Lỗi khi quét vai trò",
 			})
 			return
 		}
@@ -276,33 +275,33 @@ func Login(c *gin.Context) {
 	}
 	user.Roles = roles
 
-	// Extract role names for token
+	// Trích xuất tên vai trò cho token
 	var roleNames []string
 	for _, role := range roles {
 		roleNames = append(roleNames, role.Name)
 	}
 
-	// Generate JWT token
+	// Tạo token JWT
 	token, err := utils.GenerateToken(user.ID, roleNames)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
-			"message": "Error generating token",
+			"message": "Lỗi khi tạo token",
 		})
 		return
 	}
 
-	// Generate JWT refresh token
+	// Tạo refresh token JWT
 	refreshToken, err := utils.GenerateRefreshToken(user.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
-			"message": "Error generating refresh token",
+			"message": "Lỗi khi tạo refresh token",
 		})
 		return
 	}
 
-	// Create user response
+	// Tạo phản hồi người dùng
 	userResponse := models.UserResponse{
 		ID:           user.ID,
 		EmployeeCode: user.EmployeeCode,
@@ -321,7 +320,7 @@ func Login(c *gin.Context) {
 	})
 }
 
-// RefreshToken refreshes an access token using a valid refresh token
+// RefreshToken làm mới access token sử dụng refresh token hợp lệ
 func RefreshToken(c *gin.Context) {
 	var request struct {
 		RefreshToken string `json:"refresh_token" binding:"required"`
@@ -330,22 +329,22 @@ func RefreshToken(c *gin.Context) {
 	if err := c.ShouldBindJSON(&request); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  "error",
-			"message": "Invalid request",
+			"message": "Yêu cầu không hợp lệ",
 		})
 		return
 	}
 
-	// Validate refresh token and get user ID
+	// Xác thực refresh token và lấy ID người dùng
 	userID, err := utils.ValidateRefreshToken(request.RefreshToken)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"status":  "error",
-			"message": "Invalid refresh token",
+			"message": "Refresh token không hợp lệ",
 		})
 		return
 	}
 
-	// Get user roles
+	// Lấy vai trò của người dùng
 	rows, err := database.DB.Query(c,
 		`SELECT r.name
 		FROM user_roles ur
@@ -356,7 +355,7 @@ func RefreshToken(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
-			"message": "Error fetching roles",
+			"message": "Lỗi khi lấy vai trò",
 		})
 		return
 	}
@@ -368,29 +367,29 @@ func RefreshToken(c *gin.Context) {
 		if err := rows.Scan(&roleName); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"status":  "error",
-				"message": "Error scanning roles",
+				"message": "Lỗi khi quét vai trò",
 			})
 			return
 		}
 		roleNames = append(roleNames, roleName)
 	}
 
-	// Generate new access token
+	// Tạo access token mới
 	newToken, err := utils.GenerateToken(userID, roleNames)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
-			"message": "Error generating token",
+			"message": "Lỗi khi tạo token",
 		})
 		return
 	}
 
-	// Generate new refresh token
+	// Tạo refresh token mới
 	newRefreshToken, err := utils.GenerateRefreshToken(userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
-			"message": "Error generating refresh token",
+			"message": "Lỗi khi tạo refresh token",
 		})
 		return
 	}
@@ -404,18 +403,18 @@ func RefreshToken(c *gin.Context) {
 	})
 }
 
-// Logout invalidates a refresh token (this is a no-op with stateless tokens)
+// Logout vô hiệu hóa refresh token
 func Logout(c *gin.Context) {
-	// With stateless JWT refresh tokens, we don't need to invalidate anything on the server
-	// The client should delete the tokens from local storage
+	// Với refresh token JWT không trạng thái, chúng ta không cần vô hiệu hóa gì trên server
+	// Client nên xóa các token khỏi bộ nhớ cục bộ
 
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "success",
-		"message": "Successfully logged out",
+		"message": "Đăng xuất thành công",
 	})
 }
 
-// GetUserProfile returns the profile of the currently authenticated user
+// GetUserProfile trả về thông tin profile của người dùng hiện tại đã xác thực
 func GetUserProfile(c *gin.Context) {
 	userID, exists := c.Get("userID")
 	if !exists {
@@ -426,7 +425,7 @@ func GetUserProfile(c *gin.Context) {
 		return
 	}
 
-	// Get user by ID with department and roles
+	// Lấy người dùng theo ID với phòng ban và vai trò
 	var user models.User
 	row := database.DB.QueryRow(c,
 		`SELECT u.id, u.employee_code, u.full_name, u.email, u.department_id, d.name
@@ -435,7 +434,7 @@ func GetUserProfile(c *gin.Context) {
 		WHERE u.id = $1`,
 		userID)
 
-	// Scan into user object
+	// Quét vào đối tượng người dùng
 	var deptID, deptName sql.NullString
 	err := row.Scan(&user.ID, &user.EmployeeCode, &user.FullName, &user.Email,
 		&deptID, &deptName)
@@ -443,12 +442,12 @@ func GetUserProfile(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"status":  "error",
-			"message": "User not found",
+			"message": "Người dùng không tồn tại",
 		})
 		return
 	}
 
-	// Fill in department data if available
+	// Điền dữ liệu phòng ban nếu có
 	if deptID.Valid && deptName.Valid {
 		user.DepartmentID = deptID.String
 		user.Department = models.Department{
@@ -457,7 +456,7 @@ func GetUserProfile(c *gin.Context) {
 		}
 	}
 
-	// Get user roles
+	// Lấy vai trò của người dùng
 	rows, err := database.DB.Query(c,
 		`SELECT r.id, r.name
 		FROM user_roles ur
@@ -468,7 +467,7 @@ func GetUserProfile(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
-			"message": "Error fetching roles",
+			"message": "Lỗi khi lấy vai trò",
 		})
 		return
 	}
@@ -480,7 +479,7 @@ func GetUserProfile(c *gin.Context) {
 		if err := rows.Scan(&role.ID, &role.Name); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"status":  "error",
-				"message": "Error scanning roles",
+				"message": "Lỗi khi quét vai trò",
 			})
 			return
 		}

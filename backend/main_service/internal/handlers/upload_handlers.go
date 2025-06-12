@@ -28,8 +28,8 @@ type UploadPDFResponse struct {
 
 // UploadCVPhoto handles CV profile photo upload with predefined settings
 func UploadCVPhoto(c *gin.Context) {
-	// Parse multipart form
-	err := c.Request.ParseMultipartForm(10 << 20) // 10MB max memory
+	// Phân tích multipart form
+	err := c.Request.ParseMultipartForm(10 << 20) // 10MB bộ nhớ tối đa
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  "error",
@@ -38,7 +38,7 @@ func UploadCVPhoto(c *gin.Context) {
 		return
 	}
 
-	// Get the uploaded file
+	// Lấy file được upload
 	fileHeader, err := c.FormFile("image")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -48,7 +48,7 @@ func UploadCVPhoto(c *gin.Context) {
 		return
 	}
 
-	// Validate the image file
+	// Xác thực file ảnh
 	if err := utils.ValidateImageFile(fileHeader); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  "error",
@@ -57,15 +57,15 @@ func UploadCVPhoto(c *gin.Context) {
 		return
 	}
 
-	// Use predefined settings for CV photos
+	// Sử dụng cài đặt định sẵn cho ảnh CV
 	options := &utils.ImageProcessingOptions{
-		AspectRatio: utils.AspectRatio3x4, // CV photos use 3:4 ratio
-		MaxWidth:    600,                  // Suitable for CV display
+		AspectRatio: utils.AspectRatio3x4, // Ảnh CV sử dụng tỷ lệ 3:4
+		MaxWidth:    600,                  // Phù hợp cho hiển thị CV
 		MaxHeight:   800,                  // 600 * 4/3 = 800
-		Quality:     90,                   // High quality for professional photos
+		Quality:     90,                   // Chất lượng cao cho ảnh chuyên nghiệp
 	}
 
-	// Get original image dimensions
+	// Lấy kích thước ảnh gốc
 	originalWidth, originalHeight, err := utils.GetImageDimensions(fileHeader)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -75,7 +75,7 @@ func UploadCVPhoto(c *gin.Context) {
 		return
 	}
 
-	// Process the image
+	// Xử lý ảnh
 	processedImageData, err := utils.ProcessImage(fileHeader, options)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -85,7 +85,7 @@ func UploadCVPhoto(c *gin.Context) {
 		return
 	}
 
-	// Create Digital Ocean Spaces client
+	// Tạo Digital Ocean Spaces client
 	spacesClient, err := utils.NewSpacesClient()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -95,7 +95,7 @@ func UploadCVPhoto(c *gin.Context) {
 		return
 	}
 
-	// Upload processed image to Digital Ocean Spaces in cv-photos folder
+	// Upload ảnh đã xử lý lên Digital Ocean Spaces trong thư mục cv-photos
 	imageURL, err := spacesClient.UploadFile(fileHeader, processedImageData, "cv-photos")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -105,10 +105,10 @@ func UploadCVPhoto(c *gin.Context) {
 		return
 	}
 
-	// Calculate final dimensions
+	// Tính toán kích thước cuối cùng
 	finalWidth, finalHeight := calculateFinalDimensions(originalWidth, originalHeight, options)
 
-	// Return success response
+	// Trả về response thành công
 	response := UploadImageResponse{
 		URL:          imageURL,
 		OriginalName: fileHeader.Filename,
@@ -127,25 +127,25 @@ func UploadCVPhoto(c *gin.Context) {
 
 // calculateFinalDimensions calculates the final dimensions after processing for 3:4 ratio
 func calculateFinalDimensions(originalWidth, originalHeight int, options *utils.ImageProcessingOptions) (int, int) {
-	// CV photos always use 3:4 ratio
+	// Ảnh CV luôn sử dụng tỷ lệ 3:4
 	targetRatio := 3.0 / 4.0
 
-	// Calculate current aspect ratio
+	// Tính toán tỷ lệ hiện tại
 	currentRatio := float64(originalWidth) / float64(originalHeight)
 
 	var newWidth, newHeight int
 
 	if currentRatio > targetRatio {
-		// Image is too wide, crop width
+		// Ảnh quá rộng, cắt chiều rộng
 		newHeight = originalHeight
 		newWidth = int(float64(newHeight) * targetRatio)
 	} else {
-		// Image is too tall, crop height
+		// Ảnh quá cao, cắt chiều cao
 		newWidth = originalWidth
 		newHeight = int(float64(newWidth) / targetRatio)
 	}
 
-	// Apply max constraints (600x800 for CV photos)
+	// Áp dụng giới hạn tối đa (600x800 cho ảnh CV)
 	finalWidth := newWidth
 	finalHeight := newHeight
 
@@ -164,8 +164,8 @@ func calculateFinalDimensions(originalWidth, originalHeight int, options *utils.
 
 // UploadPDF handles PDF file upload to Digital Ocean Spaces
 func UploadPDF(c *gin.Context) {
-	// Parse multipart form with larger memory limit for PDFs
-	err := c.Request.ParseMultipartForm(25 << 20) // 25MB max memory
+	// Phân tích multipart form với giới hạn bộ nhớ lớn hơn cho PDF
+	err := c.Request.ParseMultipartForm(25 << 20) // 25MB bộ nhớ tối đa
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  "error",
@@ -174,7 +174,7 @@ func UploadPDF(c *gin.Context) {
 		return
 	}
 
-	// Get the uploaded file
+	// Lấy file được upload
 	fileHeader, err := c.FormFile("pdf")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -184,7 +184,7 @@ func UploadPDF(c *gin.Context) {
 		return
 	}
 
-	// Validate the PDF file
+	// Xác thực file PDF
 	if err := utils.ValidatePDFFile(fileHeader); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"status":  "error",
@@ -193,7 +193,7 @@ func UploadPDF(c *gin.Context) {
 		return
 	}
 
-	// Read the file data
+	// Đọc dữ liệu file
 	file, err := fileHeader.Open()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -204,7 +204,7 @@ func UploadPDF(c *gin.Context) {
 	}
 	defer file.Close()
 
-	// Read file content into memory
+	// Đọc nội dung file vào bộ nhớ
 	fileData := make([]byte, fileHeader.Size)
 	_, err = file.Read(fileData)
 	if err != nil {
@@ -215,7 +215,7 @@ func UploadPDF(c *gin.Context) {
 		return
 	}
 
-	// Create Digital Ocean Spaces client
+	// Tạo Digital Ocean Spaces client
 	spacesClient, err := utils.NewSpacesClient()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -225,7 +225,7 @@ func UploadPDF(c *gin.Context) {
 		return
 	}
 
-	// Upload PDF to Digital Ocean Spaces in cv-documents folder
+	// Upload PDF lên Digital Ocean Spaces trong thư mục cv-documents
 	pdfURL, err := spacesClient.UploadFile(fileHeader, fileData, "cv-documents")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -235,7 +235,7 @@ func UploadPDF(c *gin.Context) {
 		return
 	}
 
-	// Return success response
+	// Trả về response thành công
 	response := UploadPDFResponse{
 		URL:          pdfURL,
 		OriginalName: fileHeader.Filename,

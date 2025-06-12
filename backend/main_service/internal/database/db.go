@@ -13,36 +13,36 @@ var DB *pgxpool.Pool
 
 // InitDB initializes the database connection
 func InitDB() error {
-	// Load environment variables (optional - fallback to system env vars if .env doesn't exist)
+	// Tải biến môi trường (tùy chọn - fallback thành system env vars nếu .env không tồn tại)
 	if err := godotenv.Load(); err != nil {
 		fmt.Printf("Warning: .env file not found: %v\n", err)
-		// Continue execution - environment variables might be provided by Docker/system
+		// Tiếp tục thực thi - biến môi trường có thể được cung cấp bởi Docker/system
 	}
 
-	// Get DB connection parameters from env
+	// Lấy thông số kết nối DB từ env
 	host := os.Getenv("DB_HOST")
 	port := os.Getenv("DB_PORT")
 	user := os.Getenv("DB_USER")
 	password := os.Getenv("DB_PASSWORD")
 	dbname := os.Getenv("DB_NAME")
 
-	// Create connection string
+	// Tạo connection string
 	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s",
 		user, password, host, port, dbname)
 
-	// Create a connection pool
+	// Tạo connection pool
 	config, err := pgxpool.ParseConfig(connStr)
 	if err != nil {
 		return fmt.Errorf("unable to parse connection string: %w", err)
 	}
 
-	// Connect to the database
+	// Kết nối tới database
 	pool, err := pgxpool.NewWithConfig(context.Background(), config)
 	if err != nil {
 		return fmt.Errorf("unable to connect to database: %w", err)
 	}
 
-	// Test the connection
+	// Test kết nối
 	if err := pool.Ping(context.Background()); err != nil {
 		return fmt.Errorf("unable to ping database: %w", err)
 	}

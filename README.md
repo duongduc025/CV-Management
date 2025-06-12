@@ -7,8 +7,15 @@ A full-stack application for managing CVs, update requests, and projects. Built 
 
 ### Backend
 ```bash
-cd backend
+cd backend/main_service
 go mod tidy
+cd ../ai_service
+python3 -m venv venv
+# Linux/macOS:
+source venv/bin/activate
+# Windows (PowerShell):
+# .\venv\Scripts\Activate.ps1
+cd ../..
 ./start_backend.sh
 ```
 
